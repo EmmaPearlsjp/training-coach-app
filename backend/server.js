@@ -15,6 +15,40 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+app.post("/api/nutrition/chat", async (req, res) => {
+  const { message, profile, foodLog } = req.body || {};
+  if (typeof message !== "string" || !message.trim()) {
+    return res.status(400).json({ error: "message is required" });
+  }
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(503).json({ error: "Nutrition Coach is not configured yet. Add ANTHROPIC_API_KEY to the backend environment." });
+  }
+
+  const context = JSON.stringify({ profile: profile || {}, foodLog: foodLog || [] });
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": process.env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01"
+    },
+    body: JSON.stringify({
+      model: process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest",
+      max_tokens: 700,
+      system: "You are Nutrition Coach, a careful nutrition-support assistant for a recreational runner. Use the supplied profile and food log. Give practical estimates, clearly label uncertainty, never diagnose or prescribe, and flag allergies, eating-disorder concerns, pregnancy, diabetes, or other medical needs for a qualified professional. Ask for missing portion sizes instead of inventing precision.",
+      messages: [{ role: "user", content: `${message.trim()}\n\nCurrent app context:\n${context}` }]
+    })
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    console.error("Anthropic nutrition request failed:", detail);
+    return res.status(502).json({ error: "Nutrition Coach could not respond right now." });
+  }
+  const data = await response.json();
+  const text = (data.content || []).filter(part => part.type === "text").map(part => part.text).join("\n");
+  res.json({ text });
+});
+
 function parseShared(q) {
   return q === "true" || q === "1";
 }

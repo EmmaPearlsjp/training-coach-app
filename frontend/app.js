@@ -750,6 +750,98 @@ async function renderJournalEntries() {
   `).join("") || '<p class="empty-note">No journal entries match your search.</p>';
 }
 
+async function getNutritionProfile() {
+  try {
+    const result = await window.storage.get("nutrition:profile", false);
+    return JSON.parse(result.value);
+  } catch (e) { return {}; }
+}
+
+async function saveNutritionProfile() {
+  const profile = {
+    weight: document.getElementById("nutritionWeight").value,
+    height: document.getElementById("nutritionHeight").value,
+    age: document.getElementById("nutritionAge").value,
+    goal: document.getElementById("nutritionGoal").value,
+    diet: document.getElementById("nutritionDiet").value.trim(),
+    calories: document.getElementById("nutritionCalories").value
+  };
+  await window.storage.set("nutrition:profile", JSON.stringify(profile), false);
+}
+
+function nutritionDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+async function getFoodEntries() {
+  try {
+    const list = await window.storage.list(`food:${nutritionDate()}:`, false);
+    const entries = await Promise.all((list.keys || []).sort().map(key => window.storage.get(key, false)));
+    return entries.filter(Boolean).map(entry => JSON.parse(entry.value));
+  } catch (e) { return []; }
+}
+
+async function saveFoodEntry() {
+  const name = document.getElementById("foodName").value.trim();
+  if (!name) return;
+  const entry = {
+    name,
+    meal: document.getElementById("foodMeal").value,
+    calories: Number(document.getElementById("foodCalories").value) || 0,
+    protein: Number(document.getElementById("foodProtein").value) || 0,
+    carbs: Number(document.getElementById("foodCarbs").value) || 0,
+    fat: Number(document.getElementById("foodFat").value) || 0
+  };
+  await window.storage.set(`food:${nutritionDate()}:${Date.now()}`, JSON.stringify(entry), false);
+  ["foodName", "foodCalories", "foodProtein", "foodCarbs", "foodFat"].forEach(id => { document.getElementById(id).value = ""; });
+  await renderFoodLog();
+}
+
+async function renderFoodLog() {
+  const entries = await getFoodEntries();
+  const totals = entries.reduce((sum, entry) => ({
+    calories: sum.calories + entry.calories, protein: sum.protein + entry.protein,
+    carbs: sum.carbs + entry.carbs, fat: sum.fat + entry.fat
+  }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+  const profile = await getNutritionProfile();
+  document.getElementById("nutritionTotals").innerHTML = `
+    <div class="nutrition-total"><strong>${totals.calories}</strong><span>kcal${profile.calories ? ` / ${profile.calories}` : ""}</span></div>
+    <div class="nutrition-total"><strong>${totals.protein.toFixed(1)}g</strong><span>protein</span></div>
+    <div class="nutrition-total"><strong>${totals.carbs.toFixed(1)}g</strong><span>carbs</span></div>
+    <div class="nutrition-total"><strong>${totals.fat.toFixed(1)}g</strong><span>fat</span></div>
+  `;
+  document.getElementById("foodHistory").innerHTML = entries.slice().reverse().map(entry =>
+    `<div class="log-entry"><span>${escapeHtml(entry.meal)} · ${escapeHtml(entry.name)}</span><span class="val">${entry.calories} kcal</span></div>`
+  ).join("") || '<p class="empty-note">Nothing logged today yet.</p>';
+}
+
+async function sendNutritionMessage() {
+  const input = document.getElementById("nutritionChatInput");
+  const message = input.value.trim();
+  if (!message) return;
+  const chat = document.getElementById("nutritionChatMessages");
+  chat.insertAdjacentHTML("beforeend", `<div class="chat-message user">${escapeHtml(message)}</div>`);
+  input.value = "";
+  const entries = await getFoodEntries();
+  const profile = await getNutritionProfile();
+  const apiBase = window.TRAINING_API_BASE;
+  if (!apiBase) {
+    chat.insertAdjacentHTML("beforeend", '<div class="chat-message coach">Nutrition Coach needs a hosted backend before it can answer. Your food entries are saved locally for now.</div>');
+    return;
+  }
+  try {
+    const response = await fetch(`${apiBase}/api/nutrition/chat`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, profile, foodLog: entries })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Request failed");
+    chat.insertAdjacentHTML("beforeend", `<div class="chat-message coach">${escapeHtml(data.text).replace(/\n/g, "<br>")}</div>`);
+  } catch (error) {
+    chat.insertAdjacentHTML("beforeend", `<div class="chat-message coach">${escapeHtml(error.message)}</div>`);
+  }
+}
+
 async function renderOverview() {
   const stats = document.getElementById("overviewStats");
   if (!stats) return;
@@ -1180,6 +1272,7 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
     if (btn.dataset.panel === "reports") renderDailyReport();
     if (btn.dataset.panel === "physiology") { renderPhysiologyTab(); renderImportedMiFitness(); }
     if (btn.dataset.panel === "journal") renderJournalEntries();
+    if (btn.dataset.panel === "nutrition") { renderFoodLog(); loadNutritionProfile(); }
   });
 });
 
@@ -1192,6 +1285,14 @@ async function logWeight() {
     document.getElementById("weightInput").value = "";
     loadWeightHistory();
   } catch (e) { console.error(e); }
+}
+
+async function loadNutritionProfile() {
+  const profile = await getNutritionProfile();
+  ["weight", "height", "age", "goal", "diet", "calories"].forEach(key => {
+    const el = document.getElementById(`nutrition${key[0].toUpperCase()}${key.slice(1)}`);
+    if (el && profile[key]) el.value = profile[key];
+  });
 }
 async function loadWeightHistory() {
   const el = document.getElementById("weightHistory");
@@ -1244,5 +1345,7 @@ loadMealHistory();
 loadCustomWorkouts();
 renderImportedMiFitness();
 renderJournalEntries();
+loadNutritionProfile();
+renderFoodLog();
 renderOverview();
 populateWeekSelect();

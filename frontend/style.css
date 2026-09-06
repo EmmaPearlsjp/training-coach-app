@@ -189,6 +189,19 @@
   .journal-entry p { color: var(--ink-soft); white-space: normal; }
   .journal-tags { color: var(--dim); font-size: 12px; }
   .journal-links { display: flex; gap: 12px; font-size: 12px; font-weight: 700; }
+  .nutrition-hero { background: linear-gradient(135deg, var(--ink), #6C3D59); color: #fff; border-radius: 14px; padding: 20px; margin-bottom: 14px; }
+  .nutrition-hero .kicker { color: #F0B8A8; }
+  .nutrition-hero h2 { margin: 0 0 7px; color: #fff; font-size: 22px; }
+  .nutrition-hero p:last-child { margin: 0; color: #F4E9EE; font-size: 13px; }
+  .nutrition-totals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin: 14px 0; }
+  .nutrition-total { background: var(--panel); border-radius: 8px; padding: 10px; text-align: center; }
+  .nutrition-total strong { display: block; font-size: 17px; color: var(--ink); }
+  .nutrition-total span { color: var(--dim); font-size: 10px; text-transform: uppercase; }
+  .chat-messages { min-height: 120px; max-height: 360px; overflow-y: auto; background: #fff; border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+  .chat-message { max-width: 88%; padding: 9px 11px; border-radius: 9px; margin: 6px 0; font-size: 13px; white-space: normal; }
+  .chat-message.coach { background: var(--panel); color: var(--ink-soft); }
+  .chat-message.user { background: var(--ink); color: #fff; margin-left: auto; }
+  .chat-input-row { display: flex; gap: 8px; align-items: flex-end; }
   .edit-day-btn { background: transparent; border: 1px solid var(--line); color: var(--accent); border-radius: 5px; padding: 4px 7px; font: inherit; font-size: 10px; cursor: pointer; margin-top: 6px; }
   .modal-backdrop { position: fixed; inset: 0; z-index: 20; background: rgba(38, 24, 34, .55); display: grid; place-items: center; padding: 18px; }
   .modal-backdrop[hidden] { display: none; }
@@ -215,6 +228,10 @@
     .overview-stat span { font-size: 9px; }
     .overview-message { font-size: 12px; }
     .custom-workout-grid { grid-template-columns: 1fr 1fr; }
+    .nutrition-totals { gap: 5px; }
+    .nutrition-total { padding: 8px 4px; }
+    .nutrition-total strong { font-size: 14px; }
+    .chat-input-row { flex-direction: column; align-items: stretch; }
     .journal-grid { grid-template-columns: 1fr; }
     .add-activity-row { flex-direction: column; }
     .day-row { grid-template-columns: 35px 1fr 24px; gap: 7px; }

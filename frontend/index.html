@@ -73,6 +73,7 @@
     <button class="tab-btn" data-panel="reports">Reports</button>
     <button class="tab-btn" data-panel="physiology">Physiology</button>
     <button class="tab-btn" data-panel="journal">Journal</button>
+    <button class="tab-btn" data-panel="nutrition">Nutrition Coach</button>
   </nav>
 
   <section class="panel active" id="plan">
@@ -298,6 +299,50 @@
     <div id="journalEntries"></div>
   </section>
 
+  <section class="panel" id="nutrition">
+    <div class="nutrition-hero">
+      <p class="kicker">Nutrition specialist</p>
+      <h2>Fuel your training with confidence.</h2>
+      <p>Set your details later, log what you eat today, and ask Nutrition Coach for practical guidance. Estimates are not medical advice.</p>
+    </div>
+    <div class="log-card">
+      <h3>Your nutrition profile</h3>
+      <div class="journal-grid">
+        <input type="number" id="nutritionWeight" min="0" step="0.1" placeholder="Weight kg">
+        <input type="number" id="nutritionHeight" min="0" placeholder="Height cm">
+        <input type="number" id="nutritionAge" min="0" placeholder="Age">
+      </div>
+      <div class="journal-grid">
+        <select id="nutritionGoal"><option value="">Goal (set later)</option><option>10K performance</option><option>Weight maintenance</option><option>Gradual fat loss</option></select>
+        <input type="text" id="nutritionDiet" placeholder="Diet preferences or allergies">
+        <input type="number" id="nutritionCalories" min="0" placeholder="Daily calorie target (optional)">
+      </div>
+      <button class="action" onclick="saveNutritionProfile()">Save profile</button>
+    </div>
+    <div class="log-card">
+      <h3>Today's food</h3>
+      <div class="custom-workout-grid">
+        <input type="text" id="foodName" placeholder="Food and portion, e.g. rice 150 g">
+        <input type="number" id="foodCalories" min="0" placeholder="Calories">
+        <input type="number" id="foodProtein" min="0" step="0.1" placeholder="Protein g">
+        <input type="number" id="foodCarbs" min="0" step="0.1" placeholder="Carbs g">
+      </div>
+      <div class="media-input-grid">
+        <input type="number" id="foodFat" min="0" step="0.1" placeholder="Fat g">
+        <select id="foodMeal"><option>Breakfast</option><option>Lunch</option><option>Dinner</option><option>Snack</option></select>
+      </div>
+      <button class="action" onclick="saveFoodEntry()">Add food</button>
+      <div id="nutritionTotals" class="nutrition-totals"></div>
+      <div id="foodHistory"></div>
+    </div>
+    <div class="log-card nutrition-chat">
+      <h3>Chat with Nutrition Coach</h3>
+      <div id="nutritionChatMessages" class="chat-messages"><div class="chat-message coach">I’m ready when you are. Ask about today’s meals, fuelling a run, or what to eat next.</div></div>
+      <div class="chat-input-row"><textarea id="nutritionChatInput" placeholder="Ask Nutrition Coach..." rows="2"></textarea><button class="action" onclick="sendNutritionMessage()">Send</button></div>
+      <p class="empty-note">The AI chat becomes active after the backend is hosted and configured with an Anthropic API key.</p>
+    </div>
+  </section>
+
 </div>
 
 <div class="modal-backdrop" id="activity-editor" hidden>
@@ -356,7 +401,7 @@
     }
   });
 </script>
-<script src="storage-adapter.js?v=35a8b3d"></script>
-<script src="app.js?v=35a8b3d"></script>
+<script src="storage-adapter.js?v=nutrition-coach"></script>
+<script src="app.js?v=nutrition-coach"></script>
 </body>
 </html>
