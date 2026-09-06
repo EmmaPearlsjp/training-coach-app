@@ -15,6 +15,53 @@ let restClockInterval = null;
 let restSecondsRemaining = 0;
 let intervalClockInterval = null;
 let intervalState = null;
+const BACKUP_PREFIXES = ["custom-workout:", "plan-override:", "done:", "activities:", "swaps:", "feel:", "journal:", "food:", "weight:", "meal:", "goal:", "mi-fitness:"];
+
+async function collectTrainingData() {
+  const data = { exportedAt: new Date().toISOString(), version: 1, records: {} };
+  for (const prefix of BACKUP_PREFIXES) {
+    const list = await window.storage.list(prefix, false);
+    data.records[prefix] = {};
+    for (const key of (list.keys || [])) {
+      const entry = await window.storage.get(key, false);
+      if (entry) data.records[prefix][key] = entry.value;
+    }
+  }
+  return data;
+}
+
+async function createLocalSafetySnapshot(reason) {
+  try {
+    const data = await collectTrainingData();
+    localStorage.setItem("training-coach:safety:last", JSON.stringify({
+      ...data, reason, snapshotAt: new Date().toISOString()
+    }));
+    updateDataSafetyStatus("Snapshot saved before " + reason + ".");
+  } catch (error) {
+    console.error("Could not create local safety snapshot:", error);
+    updateDataSafetyStatus("Automatic snapshot could not be saved. Export a backup before continuing.");
+  }
+}
+
+function updateDataSafetyStatus(message) {
+  const summary = document.getElementById("dataSafetySummary");
+  if (!summary) return;
+  const status = window.storage?.getStatus?.() || { mode: "checking" };
+  const domain = window.location.hostname || "local file";
+  const mode = status.mode === "backend" ? "connected local backend" : status.mode === "browser" ? "this browser only" : "checking storage";
+  summary.textContent = `${domain} · ${mode}${message ? ` · ${message}` : ""}`;
+}
+
+function refreshDataSafetyStatus() {
+  updateDataSafetyStatus("");
+  setTimeout(() => updateDataSafetyStatus(""), 500);
+}
+
+function openAppPanel(panelName) {
+  const button = document.querySelector(`.tab-btn[data-panel="${panelName}"]`);
+  if (button) button.click();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
 
 const GUIDED_SESSIONS = {
   "abs-5": {
@@ -395,6 +442,7 @@ async function saveActivityOverride(addAnother) {
     image: document.getElementById("editor-image").value.trim()
   };
   const existing = await getActivityOverride(wi, di);
+  if (existing && !addAnother) await createLocalSafetySnapshot("replacing a planned activity");
   const activities = addAnother ? overrideActivities(existing).concat(activity) : [activity];
   const override = { activities, rest: document.getElementById("editor-rest").checked };
   await window.storage.set(`plan-override:${wi}:${di}`, JSON.stringify(override), false);
@@ -463,6 +511,7 @@ async function addActivity(wi) {
 }
 
 async function removeActivity(wi, id) {
+  await createLocalSafetySnapshot("deleting an extra activity");
   let list = await getActivities(wi);
   list = list.filter(a => a.id !== id);
   await saveActivities(wi, list);
@@ -810,6 +859,7 @@ async function editCustomWorkout(key) {
 
 async function deleteCustomWorkout(key) {
   if (!window.confirm("Delete this workout?")) return;
+  await createLocalSafetySnapshot("deleting a workout");
   await window.storage.delete(key, false);
   await loadCustomWorkouts();
   renderOverview();
@@ -829,6 +879,275 @@ async function getImportedMiFitness() {
   } catch (e) { return []; }
 }
 
+function xmlElements(node, name) {
+  if (!node) return [];
+  return [...node.getElementsByTagName("*")].filter(element => element.localName === name || element.tagName === name);
+}
+
+function xmlFirst(node, name) {
+  return xmlElements(node, name)[0] || null;
+}
+
+function xmlText(node, name) {
+  return xmlFirst(node, name)?.textContent?.trim() || "";
+}
+
+function numberOrNull(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function parseActivityDate(value) {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date.toISOString() : "";
+}
+
+function formatActivityDate(value) {
+  const parsed = parseActivityDate(value);
+  return parsed ? parsed.slice(0, 10) : "";
+}
+
+function haversineKm(first, second) {
+  if (!first || !second) return 0;
+  const radians = value => value * Math.PI / 180;
+  const lat = radians(second.lat - first.lat);
+  const lon = radians(second.lon - first.lon);
+  const a = Math.sin(lat / 2) ** 2 + Math.cos(radians(first.lat)) * Math.cos(radians(second.lat)) * Math.sin(lon / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function routeStats(points) {
+  const valid = points.filter(point => Number.isFinite(point.lat) && Number.isFinite(point.lon));
+  let distance = 0;
+  for (let index = 1; index < valid.length; index++) distance += haversineKm(valid[index - 1], valid[index]);
+  const times = valid.map(point => new Date(point.time).getTime()).filter(Number.isFinite);
+  const duration = times.length > 1 ? Math.max(0, (Math.max(...times) - Math.min(...times)) / 60000) : null;
+  return {
+    points: valid.length,
+    path: valid.map(point => ({ lat: point.lat, lon: point.lon })),
+    elevation: valid.map(point => point.elevation).filter(Number.isFinite),
+    distance_km: distance || null,
+    duration: duration || null,
+    start_time: times.length ? new Date(Math.min(...times)).toISOString() : "",
+    end_time: times.length ? new Date(Math.max(...times)).toISOString() : ""
+  };
+}
+
+let selectedRouteIds = new Set();
+
+function routeColor(index) {
+  return ["#862C4D", "#507555", "#B25074", "#817F3E", "#E18079", "#503447"][index % 6];
+}
+
+function routeFiltersMatch(activity) {
+  const type = document.getElementById("routeTypeFilter")?.value || "";
+  const date = document.getElementById("routeDateFilter")?.value || "";
+  return (!type || activity.label === type) && (!date || activity.date === date);
+}
+
+function renderRouteMap() {
+  const panel = document.getElementById("miFitnessRoutes");
+  const checklist = document.getElementById("routeChecklist");
+  const map = document.getElementById("routeMap");
+  const analysis = document.getElementById("routeAnalysis");
+  if (!panel || !checklist || !map || !analysis) return;
+  const routes = window.importedMiFitnessRoutes || [];
+  const imported = window.importedMiFitnessActivities || [];
+  const filtered = routes.filter(routeFiltersMatch);
+  panel.hidden = imported.length === 0;
+  if (!routes.length) {
+    checklist.innerHTML = '<p class="empty-note">No imported activity contains GPS route points yet.</p>';
+    map.innerHTML = '<p class="empty-note">No GPS data available for an interactive route preview.</p>';
+    analysis.innerHTML = "";
+    return;
+  }
+  const availableIds = new Set(filtered.map(route => route.activity_id));
+  selectedRouteIds = new Set([...selectedRouteIds].filter(id => availableIds.has(id)));
+  if (!selectedRouteIds.size && filtered.length) selectedRouteIds.add(filtered[0].activity_id);
+  checklist.innerHTML = filtered.length ? filtered.map((route, index) =>
+    `<label class="route-check"><input type="checkbox" data-route-id="${escapeHtml(route.activity_id)}" ${selectedRouteIds.has(route.activity_id) ? "checked" : ""}> <span style="color:${routeColor(index)}">●</span> ${escapeHtml(route.date || "Date unavailable")} · ${escapeHtml(route.label)} · ${route.distance_km ? `${Number(route.distance_km).toFixed(2)} km` : "distance unavailable"}</label>`
+  ).join("") : '<p class="empty-note">No routes match these filters.</p>';
+  checklist.querySelectorAll("input[data-route-id]").forEach(input => input.addEventListener("change", () => {
+    if (input.checked) selectedRouteIds.add(input.dataset.routeId); else selectedRouteIds.delete(input.dataset.routeId);
+    renderRouteMap();
+  }));
+  const selected = filtered.filter(route => selectedRouteIds.has(route.activity_id) && route.route?.path?.length > 1);
+  const allPoints = selected.flatMap(route => route.route.path);
+  if (!allPoints.length) {
+    map.innerHTML = '<p class="empty-note">Selected activities do not contain GPS route points.</p>';
+    analysis.innerHTML = "";
+    return;
+  }
+  const minLat = Math.min(...allPoints.map(point => point.lat));
+  const maxLat = Math.max(...allPoints.map(point => point.lat));
+  const minLon = Math.min(...allPoints.map(point => point.lon));
+  const maxLon = Math.max(...allPoints.map(point => point.lon));
+  const latSpan = maxLat - minLat || 0.001;
+  const lonSpan = maxLon - minLon || 0.001;
+  const project = point => `${10 + ((point.lon - minLon) / lonSpan) * 480},${210 - ((point.lat - minLat) / latSpan) * 200}`;
+  map.innerHTML = `<svg viewBox="0 0 500 220" preserveAspectRatio="xMidYMid meet">${selected.map((route, index) => `<path d="M ${route.route.path.map(project).join(" L ")}" stroke="${routeColor(index)}"></path>`).join("")}</svg>`;
+  const totalDistance = selected.reduce((sum, route) => sum + (Number(route.distance_km) || 0), 0);
+  const totalDuration = selected.reduce((sum, route) => sum + (Number(route.duration) || 0), 0);
+  const paces = selected.filter(route => route.pace_min_per_km).map(route => route.pace_min_per_km);
+  const elevations = selected.flatMap(route => route.route.elevation || []).filter(Number.isFinite);
+  analysis.innerHTML = [
+    ["Routes", selected.length],
+    ["Distance", `${totalDistance.toFixed(2)} km`],
+    ["Duration", `${totalDuration.toFixed(1)} min`],
+    ["Avg pace", paces.length ? `${(paces.reduce((sum, pace) => sum + pace, 0) / paces.length).toFixed(2)} min/km` : "Unavailable"],
+    ["Elevation", elevations.length ? `${(Math.max(...elevations) - Math.min(...elevations)).toFixed(0)} m gain range` : "Unavailable"]
+  ].map(([label, value]) => `<div class="route-stat"><strong>${escapeHtml(value)}</strong><span>${label}</span></div>`).join("");
+}
+
+function metricAverage(values) {
+  const numbers = values.map(Number).filter(value => Number.isFinite(value) && value > 0);
+  return numbers.length ? numbers.reduce((sum, value) => sum + value, 0) / numbers.length : null;
+}
+
+function parseTcxActivities(xml) {
+  return xmlElements(xml, "Activity").map((activity, index) => {
+    const laps = xmlElements(activity, "Lap");
+    const points = xmlElements(activity, "Trackpoint").map(point => ({
+      lat: Number(xmlText(point, "LatitudeDegrees")),
+      lon: Number(xmlText(point, "LongitudeDegrees")),
+      time: xmlText(point, "Time"),
+      elevation: Number(xmlText(point, "AltitudeMeters"))
+    }));
+    const route = routeStats(points);
+    const distance = numberOrNull(laps.reduce((sum, lap) => sum + (Number(xmlText(lap, "DistanceMeters")) || 0), 0) / 1000) || route.distance_km;
+    const duration = numberOrNull(laps.reduce((sum, lap) => sum + (Number(xmlText(lap, "TotalTimeSeconds")) || 0), 0) / 60) || route.duration;
+    const heartRates = xmlElements(activity, "HeartRateBpm").map(rate => Number(xmlText(rate, "Value")));
+    const firstLap = laps[0];
+    return {
+      source_activity_id: xmlText(activity, "Id") || `activity-${index + 1}`,
+      date: formatActivityDate(xmlText(activity, "Id") || route.start_time),
+      label: activity.getAttribute("Sport")?.replace(/_/g, " ") || "Mi Fitness activity",
+      duration, distance_km: distance,
+      avg_hr: numberOrNull(xmlText(firstLap, "AverageHeartRateBpm")) || metricAverage(heartRates),
+      max_hr: numberOrNull(xmlText(firstLap, "MaximumHeartRateBpm")) || (heartRates.length ? Math.max(...heartRates) : null),
+      calories: numberOrNull(laps.reduce((sum, lap) => sum + (Number(xmlText(lap, "Calories")) || 0), 0)),
+      cadence: metricAverage(xmlElements(activity, "Cadence").map(element => element.textContent)),
+      route
+    };
+  });
+}
+
+function parseGpxActivities(xml) {
+  return xmlElements(xml, "trk").map((track, index) => {
+    const points = xmlElements(track, "trkpt").map(point => ({
+      lat: Number(point.getAttribute("lat")),
+      lon: Number(point.getAttribute("lon")),
+      time: xmlText(point, "time"),
+      elevation: Number(xmlText(point, "ele")),
+      heartRate: Number(xmlText(point, "hr")),
+      cadence: Number(xmlText(point, "cad"))
+    }));
+    const route = routeStats(points);
+    return {
+      source_activity_id: xmlText(track, "name") || `track-${index + 1}`,
+      date: formatActivityDate(xmlText(track, "time") || route.start_time),
+      label: xmlText(track, "name") || "Mi Fitness activity",
+      duration: route.duration,
+      distance_km: route.distance_km,
+      avg_hr: metricAverage(points.map(point => point.heartRate)),
+      max_hr: Math.max(...points.map(point => point.heartRate).filter(value => value > 0)) || null,
+      calories: numberOrNull(xmlText(track, "calories")),
+      cadence: metricAverage(points.map(point => point.cadence)),
+      route
+    };
+  });
+}
+
+function parseKmlActivities(xml) {
+  return xmlElements(xml, "Placemark").map((place, index) => {
+    const extended = {};
+    xmlElements(place, "Data").forEach(data => {
+      const name = data.getAttribute("name");
+      if (name) extended[name.toLowerCase()] = xmlText(data, "value");
+    });
+    const coordinates = (xmlText(place, "coordinates") || xmlElements(place, "coord").map(element => element.textContent).join(" "))
+      .split(/\s+/).map(value => value.split(",")).filter(value => value.length >= 2).map(value => ({ lon: Number(value[0]), lat: Number(value[1]), elevation: Number(value[2]) }));
+    const when = xmlElements(place, "when").map(element => element.textContent.trim());
+    const points = coordinates.map((point, pointIndex) => ({ ...point, time: when[pointIndex] || when[0] || "" }));
+    const route = routeStats(points);
+    return {
+      source_activity_id: xmlText(place, "name") || `placemark-${index + 1}`,
+      date: formatActivityDate(when[0] || xmlText(place, "begin")),
+      label: xmlText(place, "name") || "Mi Fitness route",
+      duration: route.duration,
+      distance_km: route.distance_km,
+      avg_hr: numberOrNull(extended.heartrate || extended.avg_hr) || numberOrNull(xmlText(place, "heartRate")) || numberOrNull(xmlText(place, "avg_hr")),
+      max_hr: numberOrNull(extended.maxheartrate || extended.max_hr) || numberOrNull(xmlText(place, "maxHeartRate")) || numberOrNull(xmlText(place, "max_hr")),
+      calories: numberOrNull(extended.calories) || numberOrNull(xmlText(place, "calories")),
+      cadence: numberOrNull(extended.cadence) || numberOrNull(xmlText(place, "cadence")),
+      route
+    };
+  }).filter(activity => activity.distance_km || activity.date || activity.label !== "Mi Fitness route");
+}
+
+async function fileIdentifier(file) {
+  const bytes = await file.arrayBuffer();
+  if (window.crypto?.subtle) {
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    return [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, "0")).join("");
+  }
+  return `${file.name}:${file.size}:${file.lastModified}`;
+}
+
+function activityIdentifier(fileId, activity, index) {
+  return `${fileId}:${activity.source_activity_id || activity.date || "activity"}:${index}`;
+}
+
+async function saveParsedMiFitnessActivities(activities, file, format) {
+  const fileId = await fileIdentifier(file);
+  const existing = await getImportedMiFitness();
+  const existingIds = new Set(existing.map(activity => activity.activity_id).filter(Boolean));
+  let imported = 0;
+  let skipped = 0;
+  let missing = new Set();
+  for (const [index, activity] of activities.entries()) {
+    const activityId = activityIdentifier(fileId, activity, index);
+    if (existingIds.has(activityId)) { skipped++; continue; }
+    const workout = {
+      ...activity,
+      activity_id: activityId,
+      source_file_id: fileId,
+      source_file: file.name,
+      source: `${format.toUpperCase()} activity file`,
+      pace_min_per_km: activity.duration && activity.distance_km ? activity.duration / activity.distance_km : null
+    };
+    ["date", "duration", "distance_km", "pace_min_per_km", "avg_hr", "max_hr", "calories", "cadence"].forEach(field => {
+      if (workout[field] === null || workout[field] === "") missing.add(field);
+    });
+    await window.storage.set(`mi-fitness:file:${activityId}`, JSON.stringify(workout), false);
+    imported++;
+  }
+  return { imported, skipped, missing: [...missing] };
+}
+
+async function importMiFitnessActivityFile() {
+  const file = document.getElementById("miFitnessActivityFile").files[0];
+  const status = document.getElementById("miFitnessStatus");
+  if (!file) { status.textContent = "Choose a TCX, GPX, or KML activity file first."; return; }
+  const format = file.name.split(".").pop().toLowerCase();
+  try {
+    const text = await file.text();
+    const xml = new DOMParser().parseFromString(text, "application/xml");
+    if (xml.querySelector("parsererror")) throw new Error("The activity file is not valid XML.");
+    const activities = format === "tcx" ? parseTcxActivities(xml) : format === "gpx" ? parseGpxActivities(xml) : format === "kml" ? parseKmlActivities(xml) : [];
+    if (!activities.length) throw new Error(`No ${format.toUpperCase()} activities or routes were found.`);
+    await createLocalSafetySnapshot(`importing ${format.toUpperCase()} activity data`);
+    const result = await saveParsedMiFitnessActivities(activities, file, format);
+    const missingText = result.missing.length ? ` Unavailable in this file: ${result.missing.join(", ")}.` : "";
+    status.textContent = `${result.imported} ${format.toUpperCase()} activit${result.imported === 1 ? "y" : "ies"} imported${result.skipped ? `; ${result.skipped} duplicate${result.skipped === 1 ? "" : "s"} skipped` : ""}.${missingText}`;
+    await renderImportedMiFitness();
+    await renderOverview();
+  } catch (error) {
+    status.textContent = `Could not import that ${format.toUpperCase()} file. ${error.message}`;
+    console.error(error);
+  }
+}
+
 async function importMiFitnessBackup() {
   const file = document.getElementById("miFitnessFile").files[0];
   const status = document.getElementById("miFitnessStatus");
@@ -837,6 +1156,7 @@ async function importMiFitnessBackup() {
     const parsed = JSON.parse(await file.text());
     const source = Array.isArray(parsed) ? parsed : (parsed.workouts || parsed.activities || parsed.data || []);
     if (!Array.isArray(source) || source.length === 0) throw new Error("No workout array found");
+    await createLocalSafetySnapshot("importing Mi Fitness data");
     let imported = 0;
     for (const item of source) {
       const date = item.date || item.startTime || item.start_time || item.start;
@@ -877,6 +1197,7 @@ async function syncLocalMiFitness() {
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.detail || payload.error || "Local bridge unavailable");
     const workouts = payload.workouts?.data?.workouts || payload.workouts?.workouts || [];
+    await createLocalSafetySnapshot("syncing local Mi Fitness data");
     let imported = 0;
     for (const item of workouts) {
       const workout = {
@@ -899,17 +1220,30 @@ async function syncLocalMiFitness() {
     await renderImportedMiFitness();
     await renderOverview();
   } catch (error) {
-    status.textContent = `Local sync unavailable. Start the backend with npm start, then try again. (${error.message})`;
+    status.textContent = `Local Mi Fitness is unavailable. Your existing data is safe; use the JSON import above or start the backend with npm start. (${error.message})`;
   }
 }
 
 async function renderImportedMiFitness() {
   const imported = await getImportedMiFitness();
+  window.importedMiFitnessActivities = imported;
+  window.importedMiFitnessRoutes = imported.filter(workout => workout.route?.path?.length > 1);
+  const typeFilter = document.getElementById("routeTypeFilter");
+  if (typeFilter) {
+    const currentType = typeFilter.value;
+    const types = [...new Set(window.importedMiFitnessRoutes.map(route => route.label).filter(Boolean))].sort();
+    typeFilter.innerHTML = '<option value="">All activities</option>' + types.map(type => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`).join("");
+    typeFilter.value = types.includes(currentType) ? currentType : "";
+    typeFilter.onchange = renderRouteMap;
+  }
+  const dateFilter = document.getElementById("routeDateFilter");
+  if (dateFilter) dateFilter.onchange = renderRouteMap;
   const el = document.getElementById("miFitnessHistory");
   if (!el) return;
   el.innerHTML = imported.slice(-20).reverse().map(workout =>
-    `<div class="past-activity-entry"><span class="pa-date">${escapeHtml(workout.date)}</span> — ${escapeHtml(workout.label)} · ${workout.duration} min${workout.distance_km ? ` · ${workout.distance_km} km` : ""}${workout.breathing_rate ? ` · ${workout.breathing_rate} breaths/min` : ""} · <span style="color:var(--dim);">${escapeHtml(workout.source)}</span></div>`
+    `<div class="past-activity-entry"><span class="pa-date">${escapeHtml(workout.date || "Date unavailable")}</span> — ${escapeHtml(workout.label)}${workout.duration ? ` · ${Number(workout.duration).toFixed(1)} min` : ""}${workout.distance_km ? ` · ${Number(workout.distance_km).toFixed(2)} km` : ""}${workout.pace_min_per_km ? ` · ${formatPace(workout.distance_km, workout.duration)}/km` : ""}${workout.avg_hr ? ` · avg HR ${workout.avg_hr}` : ""}${workout.max_hr ? ` · peak HR ${workout.max_hr}` : ""}${workout.calories ? ` · ${workout.calories} kcal` : ""}${workout.cadence ? ` · ${workout.cadence} spm` : ""}${workout.route?.points ? ` · route ${workout.route.points} pts` : ""} · <span style="color:var(--dim);">${escapeHtml(workout.source)}</span></div>`
   ).join("") || '<p class="no-activities">No imported workouts yet.</p>';
+  renderRouteMap();
 }
 
 async function saveJournalEntry() {
@@ -1106,6 +1440,7 @@ async function saveGoal() {
 }
 
 async function deleteGoal(key) {
+  await createLocalSafetySnapshot("deleting a goal");
   await window.storage.delete(key, false);
   renderGoals();
 }
@@ -1167,25 +1502,21 @@ function showCalendarDay(date) {
 }
 
 async function exportTrainingData() {
-  const keys = ["custom-workout:", "plan-override:", "done:", "activities:", "swaps:", "feel:", "journal:", "food:", "weight:", "meal:", "goal:", "mi-fitness:"];
-  const data = { exportedAt: new Date().toISOString(), version: 1, records: {} };
-  for (const prefix of keys) {
-    const list = await window.storage.list(prefix, false);
-    data.records[prefix] = {};
-    for (const key of (list.keys || [])) { const entry = await window.storage.get(key, false); if (entry) data.records[prefix][key] = entry.value; }
-  }
+  const data = await collectTrainingData();
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `training-coach-backup-${new Date().toISOString().slice(0, 10)}.json`; link.click(); URL.revokeObjectURL(link.href);
   document.getElementById("backupStatus").textContent = "Backup exported.";
+  updateDataSafetyStatus("Portable backup downloaded.");
 }
 
-async function importTrainingData() {
-  const file = document.getElementById("trainingBackupFile").files[0];
+async function importTrainingData(fileInputId = "trainingBackupFile") {
+  const file = document.getElementById(fileInputId)?.files[0];
   const status = document.getElementById("backupStatus");
   if (!file) return;
   try {
     const parsed = JSON.parse(await file.text());
     if (!parsed.records) throw new Error("This is not a Training Coach backup.");
+    await createLocalSafetySnapshot("importing a training backup");
     let count = 0;
     for (const values of Object.values(parsed.records)) for (const [key, value] of Object.entries(values)) { await window.storage.set(key, value, false); count++; }
     status.textContent = `Imported ${count} saved records. Refreshing views…`;
@@ -1677,7 +2008,10 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
     if (btn.dataset.panel === "journal") renderJournalEntries();
     if (btn.dataset.panel === "nutrition") { renderFoodLog(); loadNutritionProfile(); }
   });
+
 });
+
+refreshDataSafetyStatus();
 
 async function logWeight() {
   const val = document.getElementById("weightInput").value;

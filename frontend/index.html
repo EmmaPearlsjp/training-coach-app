@@ -64,6 +64,23 @@
     <h1>10K training plan</h1>
     <p class="sub">11 weeks, starting this week. The low-volume intro week already passed, so this starts you straight into real training — with a weekly check-in that adjusts guidance based on what you actually complete.</p>
     <div class="countdown-row" id="countdownRow"></div>
+    <div class="quick-links" aria-label="Quick actions">
+      <button class="quick-link" onclick="openAppPanel('reports')">Today</button>
+      <button class="quick-link" onclick="openAppPanel('log')">Log activity</button>
+      <button class="quick-link" onclick="openAppPanel('physiology')">Physiology</button>
+      <button class="quick-link" onclick="openAppPanel('goals')">Backup data</button>
+    </div>
+    <aside class="data-safety-bar" aria-labelledby="data-safety-title">
+      <div>
+        <p class="kicker" id="data-safety-title">Data safety</p>
+        <p id="dataSafetySummary">Checking this browser and site…</p>
+        <p class="empty-note" id="dataSafetyWarning">Your data is tied to this browser and the current site/domain. Keep a downloaded backup before changing browsers, devices, or domains.</p>
+      </div>
+      <div class="data-safety-actions">
+        <button class="action secondary-action" onclick="exportTrainingData()">Export backup</button>
+        <label class="file-button action secondary-action">Import backup<input type="file" id="headerTrainingBackupFile" accept=".json,application/json" onchange="importTrainingData('headerTrainingBackupFile')"></label>
+      </div>
+    </aside>
   </header>
 
   <nav class="tabs">
@@ -318,9 +335,23 @@
         <p class="empty-note">Export your workout backup as JSON, then choose it here. Imported workouts are added to your history without replacing your original plan.</p>
         <input type="file" id="miFitnessFile" accept=".json,application/json">
         <button class="action" onclick="importMiFitnessBackup()">Import backup</button>
+        <input type="file" id="miFitnessActivityFile" accept=".tcx,.gpx,.kml,application/vnd.garmin.tcx+xml,application/gpx+xml,application/vnd.google-earth.kml+xml">
+        <button class="action secondary-action" onclick="importMiFitnessActivityFile()">Import TCX / GPX / KML</button>
         <button class="action secondary-action" onclick="syncLocalMiFitness()">Sync local Mi Fitness MCP</button>
+        <p class="empty-note">Activity files are parsed in this browser. Existing records are preserved; importing the same file again skips duplicates.</p>
         <p id="miFitnessStatus" class="empty-note"></p>
         <div id="miFitnessHistory" style="margin-top:12px;"></div>
+        <div class="route-view" id="miFitnessRoutes" hidden>
+          <h3>Imported routes</h3>
+          <p class="empty-note">Local route preview only. Nothing is sent to a map provider.</p>
+          <div class="route-filters">
+            <label>Type <select id="routeTypeFilter"><option value="">All activities</option></select></label>
+            <label>Search date <input type="date" id="routeDateFilter"></label>
+          </div>
+          <div id="routeChecklist" class="route-checklist"></div>
+          <div id="routeMap" class="route-map" role="img" aria-label="Selected imported routes"></div>
+          <div id="routeAnalysis" class="route-analysis"></div>
+        </div>
       </div>
 
       <div class="stat-row" id="physStats"></div>
@@ -494,7 +525,7 @@
     }
   });
 </script>
-<script src="storage-adapter.js?v=local-mi-fitness-1"></script>
-<script src="app.js?v=local-mi-fitness-1"></script>
+<script src="storage-adapter.js?v=reliability-pass-4"></script>
+<script src="app.js?v=reliability-pass-4"></script>
 </body>
 </html>
