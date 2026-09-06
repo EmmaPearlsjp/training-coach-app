@@ -357,21 +357,24 @@ function renderWeeks() {
   `).join("");
 }
 
-function renderActualDataForAllWeeks() {
-  weeks.forEach((w, wi) => {
-    w.days.forEach((d, di) => {
+async function renderActualDataForAllWeeks() {
+  const doneMap = await getDoneMap();
+  weeks.forEach(async (w, wi) => {
+    w.days.forEach(async (d, di) => {
       const el = document.getElementById(`actual-${wi}-${di}`);
       if (!el) return;
-      const actuals = getActualWorkoutsFor(wi, di);
+      const outcome = await getDayOutcome(wi, di, doneMap);
+      const linked = outcome.activities.flatMap(activity => activity.importedMetrics || []);
+      const actuals = [...getActualWorkoutsFor(wi, di), ...linked];
       if (actuals.length === 0) { el.innerHTML = ""; return; }
       el.innerHTML = actuals.map(a => {
-        const label = ACTUAL_TYPE_LABELS[a.type] || a.type;
-        const isRun = a.type === "outdoor_running";
+        const label = ACTUAL_TYPE_LABELS[a.type] || a.label || a.type;
+        const isRun = a.type === "outdoor_running" || activityKind(label) === "run";
         const pacingFlag = isRun && a.max_hr && (a.avg_hr / a.max_hr) > 0.85
           ? `<div class="actual-flag">⚠ Avg HR was ${Math.round((a.avg_hr / a.max_hr) * 100)}% of peak — harder than an easy effort should be.</div>`
           : "";
         return `<div class="actual-data">
-          <strong>Actual (Mi Fitness):</strong> ${label} · ${a.duration} min${a.distance_km ? ` · ${a.distance_km}km` : ""} · avg HR ${a.avg_hr}${a.max_hr ? ` (peak ${a.max_hr})` : ""} · ${a.calories} kcal
+          <strong>Actual (${escapeHtml(a.source || "Mi Fitness")}):</strong> ${escapeHtml(label)} · ${a.duration ? `${Number(a.duration).toFixed(1)} min` : "duration unavailable"}${a.distance_km ? ` · ${Number(a.distance_km).toFixed(2)}km` : ""}${a.pace_min_per_km ? ` · ${Number(a.pace_min_per_km).toFixed(2)} min/km` : ""}${a.avg_hr ? ` · avg HR ${a.avg_hr}` : ""}${a.max_hr ? ` (peak ${a.max_hr})` : ""}${a.breathing_rate ? ` · ${a.breathing_rate} breaths/min` : ""}${a.calories ? ` · ${a.calories} kcal` : ""}${a.cadence ? ` · ${a.cadence} spm` : ""}
           ${pacingFlag}
         </div>`;
       }).join("");
@@ -823,7 +826,7 @@ async function loadCustomWorkouts() {
   });
   el.innerHTML = workouts.length ? workouts.slice(0, 12).map(workout => `
     <div class="log-entry">
-      <span><strong>${escapeHtml(workout.date)}</strong> · ${escapeHtml(workout.type)} · ${workout.minutes} min${workout.distance ? ` · ${workout.distance} km` : ""}${workout.distance && workout.minutes ? ` · ${formatPace(workout.distance, workout.minutes)}/km` : ""}${workout.effort ? ` · RPE ${workout.effort}` : ""}${workout.heartRate ? ` · HR ${workout.heartRate}` : ""}${workout.video ? ` · <a href="${escapeHtml(workout.video)}" target="_blank" rel="noreferrer">video</a>` : ""}${workout.image ? ` · <a href="${escapeHtml(workout.image)}" target="_blank" rel="noreferrer">image</a>` : ""}<br>${(workout.tags || []).map(tag => `<span class="saved-tag">${escapeHtml(tag)}</span>`).join("")}<span class="entry-note">${escapeHtml(workout.notes || workout.pain || "")}</span></span>
+      <span><strong>${escapeHtml(workout.date)}</strong> · ${escapeHtml(workout.type)} · ${workout.minutes} min${workout.distance ? ` · ${workout.distance} km` : ""}${workout.distance && workout.minutes ? ` · ${formatPace(workout.distance, workout.minutes)}/km` : ""}${workout.effort ? ` · RPE ${workout.effort}` : ""}${workout.heartRate ? ` · HR ${workout.heartRate}` : ""}${workout.importedMetrics?.length ? ` · <span class="entry-note">Mi Fitness linked: ${workout.importedMetrics.length} import${workout.importedMetrics.length === 1 ? "" : "s"}</span>` : ""}${workout.video ? ` · <a href="${escapeHtml(workout.video)}" target="_blank" rel="noreferrer">video</a>` : ""}${workout.image ? ` · <a href="${escapeHtml(workout.image)}" target="_blank" rel="noreferrer">image</a>` : ""}<br>${(workout.tags || []).map(tag => `<span class="saved-tag">${escapeHtml(tag)}</span>`).join("")}<span class="entry-note">${escapeHtml(workout.notes || workout.pain || "")}</span></span>
       <span class="entry-actions"><button class="text-button" onclick="editCustomWorkout('${escapeHtml(workout.key)}')">Edit</button><button class="text-button danger" onclick="deleteCustomWorkout('${escapeHtml(workout.key)}')">Delete</button></span>
     </div>
   `).join("") : '<p class="empty-note">Your custom workouts will appear here.</p>';
@@ -875,8 +878,126 @@ async function getImportedMiFitness() {
   try {
     const list = await window.storage.list("mi-fitness:", false);
     const entries = await Promise.all((list.keys || []).map(key => window.storage.get(key, false)));
-    return entries.filter(Boolean).map(entry => JSON.parse(entry.value));
+    return entries.filter(Boolean).map(entry => ({ storageKey: entry.key, ...JSON.parse(entry.value) }));
   } catch (e) { return []; }
+}
+
+function activityKind(value) {
+  const text = String(value || "").toLowerCase();
+  if (text.includes("run") || text.includes("jog") || text.includes("walk")) return "run";
+  if (text.includes("bike") || text.includes("cycle")) return "bike";
+  if (text.includes("badminton")) return "badminton";
+  if (text.includes("strength") || text.includes("core") || text.includes("gym")) return "strength";
+  if (text.includes("hike")) return "hiking";
+  if (text.includes("yoga") || text.includes("stretch")) return "yoga";
+  return text.replace(/[^a-z]+/g, " ").trim();
+}
+
+function associationMetricSummary(activity) {
+  return {
+    source: activity.source || "Mi Fitness",
+    activity_id: activity.activity_id || activity.storageKey,
+    date: activity.date || null,
+    label: activity.label || "Mi Fitness activity",
+    duration: activity.duration || null,
+    distance_km: activity.distance_km || null,
+    pace_min_per_km: activity.pace_min_per_km || null,
+    avg_hr: activity.avg_hr || null,
+    max_hr: activity.max_hr || null,
+    heart_rate_samples: activity.heart_rate_samples || [],
+    breathing_rate: activity.breathing_rate || null,
+    breathing_samples: activity.breathing_samples || [],
+    calories: activity.calories || null,
+    cadence: activity.cadence || null,
+    elevation: activity.route?.elevation || [],
+    route: activity.route || null
+  };
+}
+
+async function getAssociationCandidates(activity) {
+  const targetDate = activity.date || "";
+  const targetKind = activityKind(activity.label);
+  const targetDuration = Number(activity.duration) || 0;
+  const targetDistance = Number(activity.distance_km) || 0;
+  const candidates = [];
+  const custom = await getCustomWorkouts();
+  custom.forEach(workout => {
+    const dateDiff = Math.abs((new Date(workout.date) - new Date(targetDate)) / 86400000);
+    if (!Number.isFinite(dateDiff) || dateDiff > 1) return;
+    const durationDiff = targetDuration && workout.minutes ? Math.abs(targetDuration - Number(workout.minutes)) : 30;
+    const distanceDiff = targetDistance && workout.distance ? Math.abs(targetDistance - Number(workout.distance)) : 2;
+    const score = (workout.date === targetDate ? 50 : 20) + (activityKind(workout.type) === targetKind ? 25 : 0) - Math.min(durationDiff, 30) - Math.min(distanceDiff * 5, 20);
+    candidates.push({ id: `custom:${workout.key}`, label: `${workout.date} · ${workout.type} · ${workout.minutes} min${workout.distance ? ` · ${workout.distance} km` : ""}`, score, kind: "custom", key: workout.key });
+  });
+  weeks.forEach((week, wi) => week.days.forEach((day, di) => {
+    const date = dateForDay(wi, di);
+    const dateDiff = Math.abs((new Date(date) - new Date(targetDate)) / 86400000);
+    if (!Number.isFinite(dateDiff) || dateDiff > 1) return;
+    const distance = parseKm(day.detail);
+    const score = (date === targetDate ? 50 : 20) + (activityKind(typeLabel(day.type)) === targetKind ? 25 : 0) - Math.min(Math.abs((targetDistance || distance) - distance) * 5, 20);
+    candidates.push({ id: `plan:${wi}:${di}`, label: `${date} · ${typeLabel(day.type)} · ${day.detail}`, score, kind: "plan", wi, di });
+  }));
+  return candidates.sort((a, b) => b.score - a.score).slice(0, 8);
+}
+
+async function updateImportedActivity(activity, association) {
+  const activityKey = activity.storageKey || `mi-fitness:${activity.activity_id}`;
+  const current = await window.storage.get(activityKey, false);
+  if (!current) throw new Error("Imported activity could not be found.");
+  const updated = JSON.parse(current.value);
+  updated.association = association;
+  updated.associatedAt = new Date().toISOString();
+  await window.storage.set(activityKey, JSON.stringify(updated), false);
+}
+
+async function associateImportedActivity(activityId, targetId) {
+  const activity = (window.importedMiFitnessActivities || []).find(item => (item.activity_id || item.storageKey) === activityId);
+  if (!activity || !targetId) return;
+  await createLocalSafetySnapshot("linking imported activity metrics");
+  const candidates = await getAssociationCandidates(activity);
+  const target = candidates.find(candidate => candidate.id === targetId);
+  if (!target) return;
+  const metrics = associationMetricSummary(activity);
+  const association = { targetId: target.id, targetLabel: target.label, targetKind: target.kind };
+  await updateImportedActivity(activity, association);
+  if (target.kind === "custom") {
+    const current = await window.storage.get(target.key, false);
+    if (current) {
+      const workout = JSON.parse(current.value);
+      workout.importedMetrics = [...(workout.importedMetrics || []).filter(item => item.activity_id !== metrics.activity_id), metrics];
+      workout.importedSource = metrics.source;
+      await window.storage.set(target.key, JSON.stringify(workout), false);
+    }
+  } else {
+    const current = await getActivityOverride(target.wi, target.di);
+    const activities = overrideActivities(current);
+    const base = activities.length ? activities : [{ type: weeks[target.wi].days[target.di].type, detail: weeks[target.wi].days[target.di].detail }];
+    base[base.length - 1].importedMetrics = [...(base[base.length - 1].importedMetrics || []).filter(item => item.activity_id !== metrics.activity_id), metrics];
+    base[base.length - 1].importedSource = metrics.source;
+    await window.storage.set(`plan-override:${target.wi}:${target.di}`, JSON.stringify({ activities: base, rest: Boolean(current?.rest) }), false);
+  }
+  await renderImportedMiFitness();
+  await loadCustomWorkouts();
+  renderWeeks();
+  renderActualDataForAllWeeks();
+}
+
+async function renderImportedAssociations(imported) {
+  const el = document.getElementById("miFitnessAssociations");
+  if (!el) return;
+  const pending = imported.filter(activity => !activity.association);
+  if (!pending.length) { el.hidden = true; return; }
+  const rows = await Promise.all(pending.map(async activity => {
+    const id = activity.activity_id || activity.storageKey;
+    const candidates = await getAssociationCandidates(activity);
+    return `<div class="association-item"><div><strong>${escapeHtml(activity.date || "Date unavailable")} · ${escapeHtml(activity.label || "Activity")}</strong><span>${activity.duration ? `${Number(activity.duration).toFixed(1)} min` : "duration unavailable"}${activity.distance_km ? ` · ${Number(activity.distance_km).toFixed(2)} km` : ""}${activity.avg_hr ? ` · HR ${activity.avg_hr}/${activity.max_hr || "—"}` : ""} · ${escapeHtml(activity.source || "Mi Fitness")}</span></div><select data-association-id="${escapeHtml(id)}"><option value="">Choose a plan/manual activity…</option>${candidates.map(candidate => `<option value="${escapeHtml(candidate.id)}">${candidate.score > 45 ? "Suggested · " : ""}${escapeHtml(candidate.label)}</option>`).join("")}</select><button class="text-button" data-associate-id="${escapeHtml(id)}">Link</button></div>`;
+  }));
+  el.hidden = false;
+  el.innerHTML = `<h3>Review imported activity links</h3><p class="empty-note">Choose a matching plan day or manual workout. Nothing is changed until you click Link; existing notes and activity fields are preserved.</p>${rows.join("")}`;
+  el.querySelectorAll("[data-associate-id]").forEach(button => button.addEventListener("click", () => {
+    const select = button.closest(".association-item")?.querySelector("select");
+    if (select?.value) associateImportedActivity(button.dataset.associateId, select.value);
+  }));
 }
 
 function xmlElements(node, name) {
@@ -1016,7 +1137,8 @@ function parseTcxActivities(xml) {
     const route = routeStats(points);
     const distance = numberOrNull(laps.reduce((sum, lap) => sum + (Number(xmlText(lap, "DistanceMeters")) || 0), 0) / 1000) || route.distance_km;
     const duration = numberOrNull(laps.reduce((sum, lap) => sum + (Number(xmlText(lap, "TotalTimeSeconds")) || 0), 0) / 60) || route.duration;
-    const heartRates = xmlElements(activity, "HeartRateBpm").map(rate => Number(xmlText(rate, "Value")));
+    const heartRates = xmlElements(activity, "HeartRateBpm").map(rate => Number(xmlText(rate, "Value"))).filter(value => value > 0);
+    const breathingRates = xmlElements(activity, "RespirationRateBpm").concat(xmlElements(activity, "RespirationRate")).map(rate => Number(rate.textContent)).filter(value => value > 0);
     const firstLap = laps[0];
     return {
       source_activity_id: xmlText(activity, "Id") || `activity-${index + 1}`,
@@ -1025,6 +1147,9 @@ function parseTcxActivities(xml) {
       duration, distance_km: distance,
       avg_hr: numberOrNull(xmlText(firstLap, "AverageHeartRateBpm")) || metricAverage(heartRates),
       max_hr: numberOrNull(xmlText(firstLap, "MaximumHeartRateBpm")) || (heartRates.length ? Math.max(...heartRates) : null),
+      heart_rate_samples: heartRates,
+      breathing_rate: metricAverage(breathingRates),
+      breathing_samples: breathingRates,
       calories: numberOrNull(laps.reduce((sum, lap) => sum + (Number(xmlText(lap, "Calories")) || 0), 0)),
       cadence: metricAverage(xmlElements(activity, "Cadence").map(element => element.textContent)),
       route
@@ -1039,6 +1164,7 @@ function parseGpxActivities(xml) {
       lon: Number(point.getAttribute("lon")),
       time: xmlText(point, "time"),
       elevation: Number(xmlText(point, "ele")),
+      breathingRate: Number(xmlText(point, "breathing_rate") || xmlText(point, "respiration")),
       heartRate: Number(xmlText(point, "hr")),
       cadence: Number(xmlText(point, "cad"))
     }));
@@ -1051,6 +1177,9 @@ function parseGpxActivities(xml) {
       distance_km: route.distance_km,
       avg_hr: metricAverage(points.map(point => point.heartRate)),
       max_hr: Math.max(...points.map(point => point.heartRate).filter(value => value > 0)) || null,
+      heart_rate_samples: points.map(point => point.heartRate).filter(value => value > 0),
+      breathing_rate: metricAverage(points.map(point => point.breathingRate)),
+      breathing_samples: points.map(point => point.breathingRate).filter(value => value > 0),
       calories: numberOrNull(xmlText(track, "calories")),
       cadence: metricAverage(points.map(point => point.cadence)),
       route
@@ -1163,14 +1292,19 @@ async function importMiFitnessBackup() {
       const type = item.type || item.activityType || item.name || "Mi Fitness activity";
       if (!date) continue;
       const workout = {
+        activity_id: item.activity_id || item.workout_id || `${date}:${type}:${item.startTime || item.start_time || ""}`,
         date: String(date).slice(0, 10),
         label: String(type).replace(/_/g, " "),
         duration: Number(item.duration || item.durationMinutes || item.duration_min || 0),
         distance_km: Number(item.distance_km || item.distance || 0) || null,
+        pace_min_per_km: Number(item.pace_min_per_km || item.pace || 0) || null,
         avg_hr: Number(item.avg_hr || item.averageHeartRate || item.avgHeartRate || 0) || null,
         max_hr: Number(item.max_hr || item.maxHeartRate || 0) || null,
+        heart_rate_samples: item.heart_rate_samples || item.heartRateSamples || [],
         breathing_rate: Number(item.breathing_rate || item.breathingRate || item.respiratory_rate || item.respiratoryRate || item.avg_respiration || 0) || null,
+        breathing_samples: item.breathing_samples || item.breathingSamples || [],
         calories: Number(item.calories || item.caloriesBurned || 0) || null,
+        cadence: Number(item.cadence || 0) || null,
         source: "Mi Fitness import"
       };
       await window.storage.set(`mi-fitness:${workout.date}:${Date.now()}:${imported}`, JSON.stringify(workout), false);
@@ -1243,6 +1377,7 @@ async function renderImportedMiFitness() {
   el.innerHTML = imported.slice(-20).reverse().map(workout =>
     `<div class="past-activity-entry"><span class="pa-date">${escapeHtml(workout.date || "Date unavailable")}</span> — ${escapeHtml(workout.label)}${workout.duration ? ` · ${Number(workout.duration).toFixed(1)} min` : ""}${workout.distance_km ? ` · ${Number(workout.distance_km).toFixed(2)} km` : ""}${workout.pace_min_per_km ? ` · ${formatPace(workout.distance_km, workout.duration)}/km` : ""}${workout.avg_hr ? ` · avg HR ${workout.avg_hr}` : ""}${workout.max_hr ? ` · peak HR ${workout.max_hr}` : ""}${workout.calories ? ` · ${workout.calories} kcal` : ""}${workout.cadence ? ` · ${workout.cadence} spm` : ""}${workout.route?.points ? ` · route ${workout.route.points} pts` : ""} · <span style="color:var(--dim);">${escapeHtml(workout.source)}</span></div>`
   ).join("") || '<p class="no-activities">No imported workouts yet.</p>';
+  await renderImportedAssociations(imported);
   renderRouteMap();
 }
 

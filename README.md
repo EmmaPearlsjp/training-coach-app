@@ -81,6 +81,14 @@ elevation range. Files without GPS points still import their summary metrics
 and show a clear no-route state; no map tiles or location data are sent to an
 external service.
 
+Imported activities also appear in an explicit association review. The app
+suggests plan days and manual workouts using date, activity type, duration, and
+distance, but never links or overwrites anything automatically. After choosing
+**Link**, the imported source and richer metrics (including HR samples,
+respiratory data when present, cadence, calories, elevation, pace, and route)
+are attached to that existing record while its original notes and fields stay
+intact. Missing breathing data is treated as unavailable, not as zero.
+
 ## Deploying
 
 **Frontend (GitHub Pages):** GitHub Pages only serves static files, which is all
