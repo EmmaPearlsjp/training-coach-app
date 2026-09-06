@@ -62,14 +62,16 @@ deployed backend, edit the inline `<script>` in `frontend/index.html`:
 
 For a Render deployment, the repository includes `render.yaml`. Create a
 Blueprint from that file; it uses `backend/` as the service root, runs
-`npm ci` then `npm start`, and checks `/api/health`. Set
+`npm install` then `npm start`, and checks `/api/health`. Set
 `window.TRAINING_API_BASE` in the frontend to the resulting Render service URL
 (without a trailing slash). The storage adapter then sends route/activity
 records to that backend and keeps its browser-local fallback if the service is
 unavailable. The backend currently enables CORS for the static GitHub Pages
 frontend; if you deploy behind a restricted proxy, allow the Pages origin and
-`GET/PUT/DELETE /api/kv` plus `GET /api/health`. The Render disk is required because this backend uses SQLite;
-without persistent disk storage, redeploys can lose data. Do not put secrets
+`GET/PUT/DELETE /api/kv` plus `GET /api/health`. The Free Render configuration
+uses ephemeral SQLite storage, so redeploys or service replacement can lose
+backend data; keep regular JSON exports or add a paid persistent disk/managed
+database before treating it as the only copy. Do not put secrets
 in the repository; Mi Fitness credentials remain local to the MCP setup.
 
 The dashboard header shows the active site/domain and whether storage is using
