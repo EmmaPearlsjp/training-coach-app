@@ -1619,8 +1619,7 @@ async function loadMealHistory() {
 function startGuidedSession(sessionKey) {
   guidedSession = GUIDED_SESSIONS[sessionKey];
   if (!guidedSession) return;
-  document.getElementById("session-modal").hidden = false;
-  document.getElementById("session-modal-title").textContent = `Start ${guidedSession.title}?`;
+  openSessionPanel();
 }
 
 function openSessionPanel() {
