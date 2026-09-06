@@ -620,7 +620,7 @@ async function getCustomWorkouts() {
     const list = await window.storage.list("custom-workout:", false);
     if (!list || !list.keys) return [];
     const entries = await Promise.all(list.keys.sort().reverse().map(key => window.storage.get(key, false)));
-    return entries.filter(Boolean).map(entry => JSON.parse(entry.value));
+    return entries.filter(Boolean).map(entry => ({ key: entry.key, ...JSON.parse(entry.value) }));
   } catch (e) {
     console.error(e);
     return [];
@@ -669,7 +669,9 @@ async function saveCustomWorkout() {
   const video = document.getElementById("customWorkoutVideo").value.trim();
   const image = document.getElementById("customWorkoutImage").value.trim();
   if (!date || !minutes) return;
-  await window.storage.set(`custom-workout:${Date.now()}`, JSON.stringify({
+  const editingKey = document.getElementById("customWorkoutEditingKey").value;
+  const key = editingKey || `custom-workout:${Date.now()}`;
+  await window.storage.set(key, JSON.stringify({
     date, type, minutes: Number(minutes), distance: distance ? Number(distance) : 0, notes, video, image,
     effort: Number(document.getElementById("customWorkoutEffort").value) || 0,
     heartRate: Number(document.getElementById("customWorkoutHeartRate").value) || 0,
@@ -682,6 +684,7 @@ async function saveCustomWorkout() {
   document.getElementById("customWorkoutVideo").value = "";
   document.getElementById("customWorkoutImage").value = "";
   ["customWorkoutEffort", "customWorkoutHeartRate", "customWorkoutEnergy", "customWorkoutPain"].forEach(id => { document.getElementById(id).value = ""; });
+  cancelWorkoutEdit();
   await loadCustomWorkouts();
   renderOverview();
 }
@@ -689,13 +692,58 @@ async function saveCustomWorkout() {
 async function loadCustomWorkouts() {
   const el = document.getElementById("customWorkoutHistory");
   if (!el) return;
-  const workouts = await getCustomWorkouts();
-  el.innerHTML = workouts.length ? workouts.slice(0, 6).map(workout => `
+  const query = (document.getElementById("workoutSearch")?.value || "").toLowerCase();
+  const filter = document.getElementById("workoutFilter")?.value || "";
+  const workouts = (await getCustomWorkouts()).filter(workout => {
+    const matchesText = `${workout.date} ${workout.type} ${workout.notes} ${workout.pain}`.toLowerCase().includes(query);
+    return matchesText && (!filter || workout.type === filter);
+  });
+  el.innerHTML = workouts.length ? workouts.slice(0, 12).map(workout => `
     <div class="log-entry">
-      <span>${escapeHtml(workout.date)} · ${escapeHtml(workout.type)} · ${workout.minutes} min${workout.distance ? ` · ${workout.distance} km` : ""}${workout.effort ? ` · RPE ${workout.effort}` : ""}${workout.heartRate ? ` · HR ${workout.heartRate}` : ""}${workout.video ? ` · <a href="${escapeHtml(workout.video)}" target="_blank" rel="noreferrer">video</a>` : ""}${workout.image ? ` · <a href="${escapeHtml(workout.image)}" target="_blank" rel="noreferrer">image</a>` : ""}</span>
-      <span class="val">${escapeHtml(workout.notes)}</span>
+      <span><strong>${escapeHtml(workout.date)}</strong> · ${escapeHtml(workout.type)} · ${workout.minutes} min${workout.distance ? ` · ${workout.distance} km` : ""}${workout.distance && workout.minutes ? ` · ${formatPace(workout.distance, workout.minutes)}/km` : ""}${workout.effort ? ` · RPE ${workout.effort}` : ""}${workout.heartRate ? ` · HR ${workout.heartRate}` : ""}${workout.video ? ` · <a href="${escapeHtml(workout.video)}" target="_blank" rel="noreferrer">video</a>` : ""}${workout.image ? ` · <a href="${escapeHtml(workout.image)}" target="_blank" rel="noreferrer">image</a>` : ""}<br><span class="entry-note">${escapeHtml(workout.notes || workout.pain || "")}</span></span>
+      <span class="entry-actions"><button class="text-button" onclick="editCustomWorkout('${escapeHtml(workout.key)}')">Edit</button><button class="text-button danger" onclick="deleteCustomWorkout('${escapeHtml(workout.key)}')">Delete</button></span>
     </div>
   `).join("") : '<p class="empty-note">Your custom workouts will appear here.</p>';
+}
+
+function formatPace(distance, minutes) {
+  const pace = Number(minutes) / Number(distance);
+  if (!Number.isFinite(pace) || pace <= 0) return "—";
+  const totalSeconds = Math.round(pace * 60);
+  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, "0")}`;
+}
+
+async function editCustomWorkout(key) {
+  const workout = (await getCustomWorkouts()).find(item => item.key === key);
+  if (!workout) return;
+  document.getElementById("customWorkoutEditingKey").value = key;
+  document.getElementById("customWorkoutDate").value = workout.date || "";
+  document.getElementById("customWorkoutType").value = workout.type || "Other";
+  document.getElementById("customWorkoutMinutes").value = workout.minutes || "";
+  document.getElementById("customWorkoutDistance").value = workout.distance || "";
+  document.getElementById("customWorkoutEffort").value = workout.effort || "";
+  document.getElementById("customWorkoutHeartRate").value = workout.heartRate || "";
+  document.getElementById("customWorkoutEnergy").value = workout.energy || "";
+  document.getElementById("customWorkoutPain").value = workout.pain || "";
+  document.getElementById("customWorkoutNotes").value = workout.notes || "";
+  document.getElementById("customWorkoutVideo").value = workout.video || "";
+  document.getElementById("customWorkoutImage").value = workout.image || "";
+  document.getElementById("saveWorkoutButton").textContent = "Update workout";
+  document.getElementById("cancelWorkoutEdit").hidden = false;
+  document.getElementById("customWorkoutDate").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+async function deleteCustomWorkout(key) {
+  if (!window.confirm("Delete this workout?")) return;
+  await window.storage.delete(key, false);
+  await loadCustomWorkouts();
+  renderOverview();
+}
+
+function cancelWorkoutEdit() {
+  document.getElementById("customWorkoutEditingKey").value = "";
+  document.getElementById("saveWorkoutButton").textContent = "Save workout";
+  document.getElementById("cancelWorkoutEdit").hidden = true;
 }
 
 async function getImportedMiFitness() {
@@ -1186,6 +1234,14 @@ async function renderWeeklyReport() {
   const kmPlanned = w.days.filter(d => RUN_TYPES.includes(d.type)).reduce((s, d) => s + parseKm(d.detail), 0);
   const kmDone = outcomes.reduce((s, outcome) => s + (outcome.completed ? (outcome.distance || (RUN_TYPES.includes(outcome.original.type) ? parseKm(outcome.original.detail) : 0)) : 0), 0);
   const activityCount = weekActivities.length;
+  const weekStart = dateForDay(wi, 0);
+  const weekEnd = dateForDay(wi, 6);
+  const weekCustom = (await getCustomWorkouts()).filter(workout => workout.date >= weekStart && workout.date <= weekEnd);
+  const runEntries = weekCustom.filter(workout => workout.type === "Run" && Number(workout.distance) > 0 && Number(workout.minutes) > 0);
+  const totalRunMinutes = runEntries.reduce((sum, workout) => sum + Number(workout.minutes), 0);
+  const totalRunDistance = runEntries.reduce((sum, workout) => sum + Number(workout.distance), 0);
+  const avgPace = totalRunDistance ? formatPace(totalRunDistance, totalRunMinutes) : "—";
+  const hardSessions = weekCustom.filter(workout => Number(workout.effort) >= 8).length;
   const feel = await getFeel(wi);
   const thisLoad = await computeWeekLoad(wi);
   const prevLoad = wi > 0 ? await computeWeekLoad(wi - 1) : null;
@@ -1195,6 +1251,8 @@ async function renderWeeklyReport() {
     <div class="stat-box"><div class="num">${kmDone}/${kmPlanned}</div><div class="lbl">Km run</div></div>
     <div class="stat-box"><div class="num">${activityCount}</div><div class="lbl">Extra activities</div></div>
     <div class="stat-box"><div class="num">${thisLoad}${prevLoad !== null ? ` <span style="font-size:12px;color:var(--dim);">(prev ${prevLoad})</span>` : ""}</div><div class="lbl">Training load</div></div>
+    <div class="stat-box"><div class="num">${avgPace}</div><div class="lbl">Avg run pace / km</div></div>
+    <div class="stat-box"><div class="num">${hardSessions}</div><div class="lbl">High-effort sessions</div></div>
   `;
 
   document.getElementById("coachNote").innerHTML = buildCoachNote(completedCount, feel, wi, thisLoad, prevLoad);

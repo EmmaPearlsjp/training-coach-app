@@ -189,6 +189,7 @@
   <section class="panel" id="log">
     <div class="log-card">
       <h3>Log a workout</h3>
+      <input type="hidden" id="customWorkoutEditingKey">
       <div class="custom-workout-grid">
         <input type="date" id="customWorkoutDate" aria-label="Workout date">
         <select id="customWorkoutType" aria-label="Workout type">
@@ -208,7 +209,8 @@
         <input type="url" id="customWorkoutVideo" placeholder="YouTube link (optional)" aria-label="YouTube link">
         <input type="url" id="customWorkoutImage" placeholder="Image link (optional)" aria-label="Image link">
       </div>
-      <button class="action" onclick="saveCustomWorkout()">Save workout</button>
+      <div class="button-row"><button class="action" id="saveWorkoutButton" onclick="saveCustomWorkout()">Save workout</button><button class="action secondary-action" id="cancelWorkoutEdit" onclick="cancelWorkoutEdit()" hidden>Cancel edit</button></div>
+      <div class="log-filter-row"><input type="search" id="workoutSearch" placeholder="Search workouts" oninput="loadCustomWorkouts()"><select id="workoutFilter" onchange="loadCustomWorkouts()"><option value="">All activities</option><option>Run</option><option>Badminton</option><option>Strength</option><option>Hiking</option><option>Yoga</option><option>Other</option></select></div>
       <div id="customWorkoutHistory" style="margin-top:12px;"></div>
     </div>
     <div class="log-card">
@@ -451,7 +453,7 @@
     }
   });
 </script>
-<script src="storage-adapter.js?v=professional-dashboard-2"></script>
-<script src="app.js?v=professional-dashboard-2"></script>
+<script src="storage-adapter.js?v=workout-management-1"></script>
+<script src="app.js?v=workout-management-1"></script>
 </body>
 </html>
