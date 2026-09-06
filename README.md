@@ -33,6 +33,19 @@ npm install
 npm start          # listens on :3001, creates backend/data.db on first run
 ```
 
+For local Mi Fitness sync, set the MCP executable path if it differs from the
+default Windows path:
+```powershell
+$env:MI_FITNESS_MCP_EXE="C:\Users\emmav\mi-fitness-mcp\.venv\Scripts\mi-fitness-mcp.exe"
+npm start
+```
+Then open the Physiology tab and choose **Sync local Mi Fitness MCP**. The
+bridge starts the MCP process only for the request, retrieves workouts and
+workout heart-rate data, and stores the normalized results in the browser.
+Credentials remain in the MCP's local keyring and are never sent to GitHub
+Pages. The backend must be running on the same computer; this is intentionally
+not a hosted sync service.
+
 **Frontend:** just open `frontend/index.html` in a browser, or serve it:
 ```bash
 cd frontend
@@ -82,11 +95,10 @@ Everything is a flat key-value store, matching what the artifact version used:
 | `meal:{timestamp}` | JSON `{ text, date }` |
 | `physiology-report:{date}` | JSON snapshot of a Mi Fitness pull, dated |
 
-## Known limitation carried over from the artifact
+## Mi Fitness sync limitations
 
-There's still no live Mi Fitness sync — Xiaomi doesn't offer a public consumer
-API. Syncing still means asking Claude to pull fresh data and update the
-`ACTUAL_WORKOUTS` / `PAST_ACTIVITIES` constants in `app.js`, then committing that
-change. A real backend doesn't remove this step, it just gives the rest of the
-app (weight log, completions, activities) a proper multi-session home instead of
-being stuck to one browser's local storage.
+The local bridge uses the installed unofficial `mi-fitness-mcp` executable.
+It supports local workout and heart-rate synchronization without exposing
+Xiaomi credentials. GitHub Pages cannot launch local programs, so `npm start`
+must be running on the computer when the sync button is used. Breathing-rate
+data is imported only if the MCP response contains it.

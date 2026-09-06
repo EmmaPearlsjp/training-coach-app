@@ -318,6 +318,7 @@
         <p class="empty-note">Export your workout backup as JSON, then choose it here. Imported workouts are added to your history without replacing your original plan.</p>
         <input type="file" id="miFitnessFile" accept=".json,application/json">
         <button class="action" onclick="importMiFitnessBackup()">Import backup</button>
+        <button class="action secondary-action" onclick="syncLocalMiFitness()">Sync local Mi Fitness MCP</button>
         <p id="miFitnessStatus" class="empty-note"></p>
         <div id="miFitnessHistory" style="margin-top:12px;"></div>
       </div>
@@ -493,7 +494,7 @@
     }
   });
 </script>
-<script src="storage-adapter.js?v=physiology-breathing-1"></script>
-<script src="app.js?v=physiology-breathing-1"></script>
+<script src="storage-adapter.js?v=local-mi-fitness-1"></script>
+<script src="app.js?v=local-mi-fitness-1"></script>
 </body>
 </html>

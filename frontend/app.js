@@ -856,11 +856,50 @@ async function importMiFitnessBackup() {
       await window.storage.set(`mi-fitness:${workout.date}:${Date.now()}:${imported}`, JSON.stringify(workout), false);
       imported++;
     }
+
     status.textContent = `${imported} workout${imported === 1 ? "" : "s"} imported.`;
     renderImportedMiFitness();
   } catch (error) {
     status.textContent = "Could not read that file. Export a JSON workout backup and try again.";
     console.error(error);
+  }
+}
+
+async function syncLocalMiFitness() {
+  const status = document.getElementById("miFitnessStatus");
+  status.textContent = "Connecting to the local Mi Fitness MCP...";
+  try {
+    const response = await fetch("http://localhost:3001/api/mi-fitness/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({})
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.detail || payload.error || "Local bridge unavailable");
+    const workouts = payload.workouts?.data?.workouts || payload.workouts?.workouts || [];
+    let imported = 0;
+    for (const item of workouts) {
+      const workout = {
+        date: item.local_date || String(item.start_at || "").slice(0, 10),
+        label: item.activity_type || item.sport_category || "Mi Fitness workout",
+        duration: Number(item.duration_minutes) || 0,
+        distance_km: item.distance_m ? Number(item.distance_m) / 1000 : null,
+        avg_hr: Number(item.avg_heart_rate_bpm) || null,
+        max_hr: Number(item.max_heart_rate_bpm) || null,
+        breathing_rate: Number(item.breathing_rate || item.breathingRate || item.respiratory_rate || 0) || null,
+        calories: Number(item.calories_kcal) || null,
+        source: "Local Mi Fitness MCP",
+        workout_id: item.workout_id || `${item.local_date}-${item.activity_type}-${item.start_at}`
+      };
+      if (!workout.date) continue;
+      await window.storage.set(`mi-fitness:mcp:${workout.workout_id}`, JSON.stringify(workout), false);
+      imported++;
+    }
+    status.textContent = `${imported} Mi Fitness workouts synced locally (${payload.startDate} to ${payload.endDate}).`;
+    await renderImportedMiFitness();
+    await renderOverview();
+  } catch (error) {
+    status.textContent = `Local sync unavailable. Start the backend with npm start, then try again. (${error.message})`;
   }
 }
 

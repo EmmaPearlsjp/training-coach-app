@@ -9,11 +9,103 @@
 
 const express = require("express");
 const cors = require("cors");
+const { spawn } = require("child_process");
 const store = require("./db");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const MI_FITNESS_MCP_EXE = process.env.MI_FITNESS_MCP_EXE ||
+  "C:\\Users\\emmav\\mi-fitness-mcp\\.venv\\Scripts\\mi-fitness-mcp.exe";
+
+function callMiFitnessMcp(method, params = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(MI_FITNESS_MCP_EXE, ["serve"], {
+      stdio: ["pipe", "pipe", "pipe"],
+      windowsHide: true
+    });
+    let buffer = "";
+    let settled = false;
+    let nextId = 1;
+    const timer = setTimeout(() => finish(new Error("Mi Fitness MCP timed out")), 30000);
+    const finish = (error, result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.kill();
+      error ? reject(error) : resolve(result);
+    };
+    const send = (id, requestMethod, requestParams) => {
+      child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method: requestMethod, params: requestParams })}\n`);
+    };
+    const readResponse = (line) => {
+      let message;
+      try { message = JSON.parse(line); } catch { return; }
+      if (message.id !== 2) return;
+      if (message.error) return finish(new Error(message.error.message || "MCP request failed"));
+      const content = message.result && message.result.content;
+      const text = Array.isArray(content) ? content.find(item => item.type === "text")?.text : null;
+      if (!text) return finish(new Error("Mi Fitness MCP returned no data"));
+      try { finish(null, JSON.parse(text)); } catch { finish(null, { text }); }
+    };
+    child.stdout.on("data", chunk => {
+      buffer += chunk.toString();
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop();
+      lines.forEach(readResponse);
+    });
+    child.stderr.on("data", chunk => console.warn("Mi Fitness MCP:", chunk.toString().trim()));
+    child.on("error", error => finish(error));
+    child.on("exit", code => { if (!settled && code !== 0) finish(new Error(`Mi Fitness MCP exited with code ${code}`)); });
+    send(1, "initialize", {
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+      clientInfo: { name: "training-coach-local-bridge", version: "1.0" }
+    });
+    child.stdout.once("data", () => {
+      child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`);
+      send(2, method, params);
+    });
+  });
+}
+
+function mcpDate(value, fallback) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value || "") ? value : fallback;
+}
+
+app.get("/api/mi-fitness/status", async (req, res) => {
+  try {
+    const data = await callMiFitnessMcp("tools/call", { name: "get_connection_status", arguments: {} });
+    res.json(data);
+  } catch (error) {
+    res.status(503).json({ error: "Local Mi Fitness MCP is unavailable.", detail: error.message });
+  }
+});
+
+app.post("/api/mi-fitness/sync", async (req, res) => {
+  const endDate = mcpDate(req.body?.endDate, new Date().toISOString().slice(0, 10));
+  const start = new Date(`${endDate}T00:00:00Z`);
+  start.setUTCDate(start.getUTCDate() - 90);
+  const startDate = mcpDate(req.body?.startDate, start.toISOString().slice(0, 10));
+  try {
+    await callMiFitnessMcp("tools/call", {
+      name: "sync_data",
+      arguments: { data_types: ["daily_activity", "heart_rate", "body_measurements", "workouts"], start_date: startDate, end_date: endDate }
+    });
+    const workouts = await callMiFitnessMcp("tools/call", {
+      name: "query_workouts",
+      arguments: { start_date: startDate, end_date: endDate }
+    });
+    const heartRate = await callMiFitnessMcp("tools/call", {
+      name: "query_heart_rate",
+      arguments: { start_date: startDate, end_date: endDate, sample_type: "workout", limit: 500 }
+    });
+    res.json({ startDate, endDate, workouts, heartRate });
+  } catch (error) {
+    res.status(503).json({ error: "Local Mi Fitness sync failed.", detail: error.message });
+  }
+});
 
 app.post("/api/nutrition/chat", async (req, res) => {
   const { message, profile, foodLog } = req.body || {};
@@ -86,6 +178,7 @@ app.get("/api/kv", (req, res) => {
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`training-coach-backend listening on :${PORT}`);
+const HOST = process.env.HOST || "127.0.0.1";
+app.listen(PORT, HOST, () => {
+  console.log(`training-coach-backend listening on ${HOST}:${PORT}`);
 });
