@@ -53,7 +53,7 @@
     <p class="kicker">Private training dashboard</p>
     <h1>Enter your access code</h1>
     <input id="access-code" type="password" inputmode="numeric" autocomplete="current-password" aria-label="Access code" required>
-    <button type="submit">Open dashboard</button>
+    <button type="button" id="open-dashboard">Open dashboard</button>
     <p id="login-error" role="alert"></p>
   </form>
 </div>
@@ -254,8 +254,7 @@
     dashboard.hidden = true;
   }
 
-  loginForm.addEventListener("submit", (event) => {
-    event.preventDefault();
+  function openDashboard() {
     const enteredCode = accessCode.value.trim();
     if (enteredCode === ACCESS_CODE) {
       sessionStorage.setItem("trainingCoachAuthenticated", "true");
@@ -265,6 +264,14 @@
     } else {
       loginError.textContent = "That code is not correct.";
       accessCode.select();
+    }
+  }
+
+  document.getElementById("open-dashboard").addEventListener("click", openDashboard);
+  loginForm.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      openDashboard();
     }
   });
 </script>
