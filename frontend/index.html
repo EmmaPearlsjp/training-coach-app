@@ -200,6 +200,7 @@
         <div class="session-clock rest-clock"><strong id="restTimer">00:00</strong><span>rest timer</span></div>
       </div>
       <div class="session-actions"><button class="action" onclick="startRestTimer(60)">Start 60s rest</button><button class="action secondary-action" onclick="startRestTimer(90)">Start 90s rest</button><button class="action secondary-action" onclick="stopRestTimer()">Stop timer</button></div>
+      <div class="interval-controls" id="intervalControls" hidden><strong id="intervalExerciseName">Circuit ready</strong><span id="intervalClock">00:40</span><button class="action" onclick="startIntervalCircuit()">Start circuit timer</button><button class="action secondary-action" onclick="pauseIntervalCircuit()">Pause circuit</button></div>
       <div id="sessionExerciseList"></div>
     </div>
   </section>
@@ -481,7 +482,7 @@
     }
   });
 </script>
-<script src="storage-adapter.js?v=guided-strength-2"></script>
-<script src="app.js?v=guided-strength-2"></script>
+<script src="storage-adapter.js?v=abs-finisher-1"></script>
+<script src="app.js?v=abs-finisher-1"></script>
 </body>
 </html>

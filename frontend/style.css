@@ -134,6 +134,12 @@
   .session-clock span { display: block; color: #E5D8DF; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
   .session-clock.rest-clock { background: var(--accent); }
   .session-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .interval-controls { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 9px; padding: 10px; margin-bottom: 12px; }
+  .interval-controls strong { font-size: 13px; color: var(--ink); }
+  .interval-controls span { font-size: 22px; color: var(--accent); font-weight: 800; min-width: 58px; text-align: center; }
+  .abs-actions { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+  .quick-abs-btn { border: 1px solid rgba(134,44,77,.35); background: #FFF7F3; color: var(--accent); border-radius: 5px; padding: 4px 7px; font: inherit; font-size: 10px; font-weight: 800; cursor: pointer; }
+  .quick-abs-btn:hover { background: var(--accent); color: #fff; }
   .exercise-card { background: #fff; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
   .exercise-card-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
   .exercise-card h3 { display: inline; margin: 0; font-size: 16px; }
@@ -297,6 +303,8 @@
     .session-clock-row { gap: 5px; }
     .session-clock { padding: 9px 4px; }
     .session-clock strong { font-size: 17px; }
+    .interval-controls { grid-template-columns: 1fr 64px; }
+    .interval-controls button { width: 100%; }
     .exercise-card-head { display: block; }
     .video-link { display: inline-block; margin-top: 4px; }
     .journal-grid { grid-template-columns: 1fr; }

@@ -13,8 +13,34 @@ let sessionStartedAt = null;
 let sessionClockInterval = null;
 let restClockInterval = null;
 let restSecondsRemaining = 0;
+let intervalClockInterval = null;
+let intervalState = null;
 
 const GUIDED_SESSIONS = {
+  "abs-5": {
+    title: "Quick Abs — 5 minutes",
+    equipment: "Exercise mat recommended. Move smoothly; this is a focused core finisher, not a promise of spot fat loss.",
+    interval: { work: 40, transition: 20, rounds: 1 },
+    exercises: [
+      ["Dead bug", 1, "40 sec", "Keep your lower back gently connected to the floor and move opposite arm and leg slowly.", "dead bug exercise proper form"],
+      ["Forearm plank", 1, "40 sec", "Squeeze glutes and brace without holding your breath; stop before your back sags.", "forearm plank proper form"],
+      ["Reverse crunch", 1, "40 sec", "Curl the pelvis toward the ribs without swinging your legs.", "reverse crunch proper form"],
+      ["Side plank — left", 1, "40 sec", "Lift from the waist and keep your body in one long line.", "side plank left proper form"],
+      ["Side plank — right", 1, "40 sec", "Keep the shoulder stacked and the hips lifted as long as form stays strong.", "side plank right proper form"]
+    ]
+  },
+  "abs-10": {
+    title: "Quick Abs — 10 minutes",
+    equipment: "Exercise mat recommended. Complete two controlled rounds of the 5-minute core circuit.",
+    interval: { work: 40, transition: 20, rounds: 2 },
+    exercises: [
+      ["Dead bug", 2, "40 sec", "Keep your lower back gently connected to the floor and move opposite arm and leg slowly.", "dead bug exercise proper form"],
+      ["Forearm plank", 2, "40 sec", "Squeeze glutes and brace without holding your breath; stop before your back sags.", "forearm plank proper form"],
+      ["Reverse crunch", 2, "40 sec", "Curl the pelvis toward the ribs without swinging your legs.", "reverse crunch proper form"],
+      ["Side plank — left", 2, "40 sec", "Lift from the waist and keep your body in one long line.", "side plank left proper form"],
+      ["Side plank — right", 2, "40 sec", "Keep the shoulder stacked and the hips lifted as long as form stays strong.", "side plank right proper form"]
+    ]
+  },
   "legs-core": {
     title: "Legs & Core — Loading Up",
     equipment: "Dumbbell, exercise mat, stable bench or step",
@@ -246,6 +272,7 @@ function renderWeeks() {
               <span class="badge b-${d.type}" id="day-badge-${wi}-${di}">${typeLabel(d.type)}</span>
               <div id="actual-${wi}-${di}"></div>
               <button class="edit-day-btn" onclick="openActivityEditor(${wi},${di})">Log what I did</button>
+              ${RUN_TYPES.includes(d.type) ? `<div class="abs-actions"><button class="quick-abs-btn" onclick="startGuidedSession('abs-5')">+ 5 min abs</button><button class="quick-abs-btn" onclick="startGuidedSession('abs-10')">+ 10 min abs</button></div>` : ""}
             </div>
             <input type="checkbox" id="done-${wi}-${di}" onchange="saveDone(${wi},${di})">
           </div>
@@ -554,6 +581,7 @@ async function renderActivityList(wi) {
           <span class="badge ${activityBadgeClass(a.type)}">${ACTIVITY_LABELS[a.type] || a.type}</span>
           <span class="activity-day">${a.day}</span>
           ${a.details ? `<div class="activity-detail">${a.details}</div>` : ""}
+          ${a.type === "badminton" ? `<div class="abs-actions"><button class="quick-abs-btn" onclick="startGuidedSession('abs-5')">+ 5 min abs</button><button class="quick-abs-btn" onclick="startGuidedSession('abs-10')">+ 10 min abs</button></div>` : ""}
           ${statusHtml}
           ${moveBtnHtml}
         </div>
@@ -1632,6 +1660,9 @@ function openSessionPanel() {
   panel.classList.add("active");
   document.getElementById("sessionTitle").textContent = guidedSession.title;
   document.getElementById("sessionProgress").textContent = `${guidedSession.equipment}. Follow the cues, use the video links as a visual reference, and stop if you feel sharp pain.`;
+  const intervalControls = document.getElementById("intervalControls");
+  intervalControls.hidden = !guidedSession.interval;
+  stopIntervalCircuit();
   sessionStartedAt = Date.now();
   clearInterval(sessionClockInterval);
   sessionClockInterval = setInterval(updateSessionClock, 1000);
@@ -1646,6 +1677,65 @@ function renderGuidedSession() {
     return `<article class="exercise-card"><div class="exercise-card-head"><div><span class="exercise-number">${index + 1}</span><h3>${escapeHtml(name)}</h3><p>${sets} sets · ${escapeHtml(reps)}</p></div><a class="video-link" href="https://www.youtube.com/results?search_query=${encodeURIComponent(search)}" target="_blank" rel="noreferrer">Watch explanation</a></div><p class="exercise-cue"><strong>Form cue:</strong> ${escapeHtml(cue)}</p><div class="set-tracker">${Array.from({ length: sets }, (_, setIndex) => `<label class="set-check"><input type="checkbox" onchange="updateSessionProgress()"><span>Set ${setIndex + 1}</span></label>`).join("")}</div><button class="text-button" onclick="startRestTimer(${sets > 2 ? 60 : 90})">Rest ${sets > 2 ? 60 : 90}s</button></article>`;
   }).join("");
   updateSessionProgress();
+}
+
+function startIntervalCircuit() {
+  if (!guidedSession || !guidedSession.interval) return;
+  stopIntervalCircuit();
+  intervalState = { phase: "work", seconds: guidedSession.interval.work, exercise: 0, round: 1 };
+  updateIntervalDisplay();
+  intervalClockInterval = setInterval(tickIntervalCircuit, 1000);
+}
+
+function tickIntervalCircuit() {
+  if (!intervalState || !guidedSession?.interval) return;
+  intervalState.seconds -= 1;
+  if (intervalState.seconds <= 0) {
+    if (intervalState.phase === "work") {
+      const nextExercise = intervalState.exercise + 1;
+      if (nextExercise >= guidedSession.exercises.length) {
+        if (intervalState.round >= guidedSession.interval.rounds) {
+          stopIntervalCircuit();
+          document.getElementById("intervalExerciseName").textContent = "Circuit complete";
+          document.getElementById("intervalClock").textContent = "Done";
+          if ("vibrate" in navigator) navigator.vibrate([200, 100, 200]);
+          return;
+        }
+        intervalState.round += 1;
+        intervalState.exercise = 0;
+      } else {
+        intervalState.exercise = nextExercise;
+      }
+      intervalState.phase = "transition";
+      intervalState.seconds = guidedSession.interval.transition;
+    } else {
+      intervalState.phase = "work";
+      intervalState.seconds = guidedSession.interval.work;
+    }
+  }
+  updateIntervalDisplay();
+}
+
+function updateIntervalDisplay() {
+  if (!intervalState) return;
+  const exercise = guidedSession.exercises[intervalState.exercise];
+  document.getElementById("intervalExerciseName").textContent = `${intervalState.phase === "work" ? "Work" : "Transition"} · ${exercise[0]} · Round ${intervalState.round}/${guidedSession.interval.rounds}`;
+  document.getElementById("intervalClock").textContent = formatTimer(intervalState.seconds);
+}
+
+function stopIntervalCircuit() {
+  clearInterval(intervalClockInterval);
+  intervalClockInterval = null;
+  intervalState = null;
+  const clock = document.getElementById("intervalClock");
+  const name = document.getElementById("intervalExerciseName");
+  if (clock) clock.textContent = "00:40";
+  if (name) name.textContent = "Circuit ready";
+}
+
+function pauseIntervalCircuit() {
+  clearInterval(intervalClockInterval);
+  intervalClockInterval = null;
 }
 
 function updateSessionClock() {
@@ -1692,6 +1782,7 @@ function stopRestTimer() {
 function closeGuidedSession() {
   clearInterval(sessionClockInterval);
   clearInterval(restClockInterval);
+  stopIntervalCircuit();
   sessionStartedAt = null;
   stopRestTimer();
   document.getElementById("session-modal").hidden = true;
