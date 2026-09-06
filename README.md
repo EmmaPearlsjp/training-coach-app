@@ -33,6 +33,14 @@ npm install
 npm start          # listens on :3001, creates backend/data.db on first run
 ```
 
+For local-only use, bind explicitly to loopback:
+```powershell
+$env:HOST="127.0.0.1"
+npm start
+```
+When `HOST` is not set (as on Render), the backend binds to `0.0.0.0` so the
+platform can route public requests to it.
+
 For local Mi Fitness sync, set the MCP executable path if it differs from the
 default Windows path:
 ```powershell
