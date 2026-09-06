@@ -739,6 +739,7 @@ async function saveCustomWorkout() {
   const notes = document.getElementById("customWorkoutNotes").value.trim();
   const video = document.getElementById("customWorkoutVideo").value.trim();
   const image = document.getElementById("customWorkoutImage").value.trim();
+  const tags = [...document.querySelectorAll(".tag-picker input:checked")].map(input => input.value);
   if (!date || !minutes) return;
   const editingKey = document.getElementById("customWorkoutEditingKey").value;
   const key = editingKey || `custom-workout:${Date.now()}`;
@@ -747,7 +748,8 @@ async function saveCustomWorkout() {
     effort: Number(document.getElementById("customWorkoutEffort").value) || 0,
     heartRate: Number(document.getElementById("customWorkoutHeartRate").value) || 0,
     energy: Number(document.getElementById("customWorkoutEnergy").value) || 0,
-    pain: document.getElementById("customWorkoutPain").value.trim()
+    pain: document.getElementById("customWorkoutPain").value.trim(),
+    tags
   }), false);
   document.getElementById("customWorkoutMinutes").value = "";
   document.getElementById("customWorkoutDistance").value = "";
@@ -755,6 +757,7 @@ async function saveCustomWorkout() {
   document.getElementById("customWorkoutVideo").value = "";
   document.getElementById("customWorkoutImage").value = "";
   ["customWorkoutEffort", "customWorkoutHeartRate", "customWorkoutEnergy", "customWorkoutPain"].forEach(id => { document.getElementById(id).value = ""; });
+  document.querySelectorAll(".tag-picker input").forEach(input => { input.checked = false; });
   cancelWorkoutEdit();
   await loadCustomWorkouts();
   renderOverview();
@@ -766,12 +769,12 @@ async function loadCustomWorkouts() {
   const query = (document.getElementById("workoutSearch")?.value || "").toLowerCase();
   const filter = document.getElementById("workoutFilter")?.value || "";
   const workouts = (await getCustomWorkouts()).filter(workout => {
-    const matchesText = `${workout.date} ${workout.type} ${workout.notes} ${workout.pain}`.toLowerCase().includes(query);
+    const matchesText = `${workout.date} ${workout.type} ${workout.notes} ${workout.pain} ${(workout.tags || []).join(" ")}`.toLowerCase().includes(query);
     return matchesText && (!filter || workout.type === filter);
   });
   el.innerHTML = workouts.length ? workouts.slice(0, 12).map(workout => `
     <div class="log-entry">
-      <span><strong>${escapeHtml(workout.date)}</strong> · ${escapeHtml(workout.type)} · ${workout.minutes} min${workout.distance ? ` · ${workout.distance} km` : ""}${workout.distance && workout.minutes ? ` · ${formatPace(workout.distance, workout.minutes)}/km` : ""}${workout.effort ? ` · RPE ${workout.effort}` : ""}${workout.heartRate ? ` · HR ${workout.heartRate}` : ""}${workout.video ? ` · <a href="${escapeHtml(workout.video)}" target="_blank" rel="noreferrer">video</a>` : ""}${workout.image ? ` · <a href="${escapeHtml(workout.image)}" target="_blank" rel="noreferrer">image</a>` : ""}<br><span class="entry-note">${escapeHtml(workout.notes || workout.pain || "")}</span></span>
+      <span><strong>${escapeHtml(workout.date)}</strong> · ${escapeHtml(workout.type)} · ${workout.minutes} min${workout.distance ? ` · ${workout.distance} km` : ""}${workout.distance && workout.minutes ? ` · ${formatPace(workout.distance, workout.minutes)}/km` : ""}${workout.effort ? ` · RPE ${workout.effort}` : ""}${workout.heartRate ? ` · HR ${workout.heartRate}` : ""}${workout.video ? ` · <a href="${escapeHtml(workout.video)}" target="_blank" rel="noreferrer">video</a>` : ""}${workout.image ? ` · <a href="${escapeHtml(workout.image)}" target="_blank" rel="noreferrer">image</a>` : ""}<br>${(workout.tags || []).map(tag => `<span class="saved-tag">${escapeHtml(tag)}</span>`).join("")}<span class="entry-note">${escapeHtml(workout.notes || workout.pain || "")}</span></span>
       <span class="entry-actions"><button class="text-button" onclick="editCustomWorkout('${escapeHtml(workout.key)}')">Edit</button><button class="text-button danger" onclick="deleteCustomWorkout('${escapeHtml(workout.key)}')">Delete</button></span>
     </div>
   `).join("") : '<p class="empty-note">Your custom workouts will appear here.</p>';
@@ -796,6 +799,7 @@ async function editCustomWorkout(key) {
   document.getElementById("customWorkoutHeartRate").value = workout.heartRate || "";
   document.getElementById("customWorkoutEnergy").value = workout.energy || "";
   document.getElementById("customWorkoutPain").value = workout.pain || "";
+  document.querySelectorAll(".tag-picker input").forEach(input => { input.checked = (workout.tags || []).includes(input.value); });
   document.getElementById("customWorkoutNotes").value = workout.notes || "";
   document.getElementById("customWorkoutVideo").value = workout.video || "";
   document.getElementById("customWorkoutImage").value = workout.image || "";

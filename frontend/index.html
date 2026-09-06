@@ -223,6 +223,11 @@
         <input type="number" id="customWorkoutEnergy" min="1" max="10" placeholder="Energy 1–10">
         <input type="text" id="customWorkoutPain" placeholder="Pain or discomfort (optional)">
       </div>
+      <div class="tag-picker" aria-label="Optional activity tags">
+        <span class="tag-picker-label">Optional one-off tags</span>
+        <label class="activity-tag"><input type="checkbox" id="tagFeetStrengthening" value="Feet strengthening"><span>Feet strengthening</span></label>
+        <label class="activity-tag"><input type="checkbox" id="tagStretching" value="Stretching"><span>Stretching</span></label>
+      </div>
       <textarea id="customWorkoutNotes" placeholder="How did it feel? Optional notes"></textarea>
       <div class="media-input-grid">
         <input type="url" id="customWorkoutVideo" placeholder="YouTube link (optional)" aria-label="YouTube link">
@@ -482,7 +487,7 @@
     }
   });
 </script>
-<script src="storage-adapter.js?v=abs-finisher-1"></script>
-<script src="app.js?v=abs-finisher-1"></script>
+<script src="storage-adapter.js?v=activity-tags-1"></script>
+<script src="app.js?v=activity-tags-1"></script>
 </body>
 </html>
