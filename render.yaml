@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: training-coach-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: DB_PATH
+        value: /var/data/training-coach.db
+    disk:
+      name: training-coach-data
+      mountPath: /var/data
+      sizeGB: 1
