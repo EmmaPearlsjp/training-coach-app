@@ -758,6 +758,7 @@ async function renderOverview() {
   const planned = weeks.reduce((sum, week) => sum + week.days.filter(day => day.type !== "rest").length, 0);
   const completed = outcomes.filter(outcome => outcome.completed && outcome.original.type !== "rest").length;
   const completedKm = outcomes.reduce((sum, outcome) => sum + (outcome.completed ? (outcome.distance || (RUN_TYPES.includes(outcome.original.type) ? parseKm(outcome.original.detail) : 0)) : 0), 0);
+  const plannedKm = weeks.reduce((sum, week) => sum + week.days.reduce((inner, day) => inner + (RUN_TYPES.includes(day.type) ? parseKm(day.detail) : 0), 0), 0);
   const extras = (await Promise.all(weeks.map((_, wi) => getActivities(wi)))).reduce((sum, list) => sum + list.length, 0);
   const percent = planned ? Math.round((completed / planned) * 100) : 0;
   const today = todayPosition();
@@ -768,6 +769,9 @@ async function renderOverview() {
     <div class="overview-stat"><strong>${extras}</strong><span>extra activities</span></div>
   `;
   document.getElementById("overviewProgressBar").style.width = `${Math.min(percent, 100)}%`;
+  document.getElementById("overviewGoalLabel").textContent = `${completed}/${planned} sessions`;
+  document.getElementById("overviewKmLabel").textContent = `${completedKm.toFixed(1)} / ${plannedKm.toFixed(1)} km`;
+  document.getElementById("overviewKmProgressBar").style.width = `${plannedKm ? Math.min((completedKm / plannedKm) * 100, 100) : 0}%`;
   document.getElementById("overviewMessage").textContent = next
     ? `Next up: ${next.detail}. ${percent}% of your planned training is complete.`
     : "Your plan is outside the current date range.";
