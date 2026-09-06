@@ -255,7 +255,8 @@
 
   loginForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    if (accessCode.value === ACCESS_CODE) {
+    const enteredCode = accessCode.value.trim();
+    if (enteredCode === ACCESS_CODE) {
       sessionStorage.setItem("trainingCoachAuthenticated", "true");
       loginGate.hidden = true;
       dashboard.hidden = false;
