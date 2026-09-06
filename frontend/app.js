@@ -625,6 +625,35 @@ async function getCustomWorkouts() {
   }
 }
 
+async function getActualActivityTotals() {
+  const totals = { Run: { minutes: 0, distance: 0 }, Badminton: { minutes: 0 }, Strength: { minutes: 0 }, Hiking: { minutes: 0 }, Yoga: { minutes: 0 }, Other: { minutes: 0 } };
+  const custom = await getCustomWorkouts();
+  custom.forEach(workout => {
+    const type = totals[workout.type] ? workout.type : "Other";
+    totals[type].minutes += Number(workout.minutes) || 0;
+    totals[type].distance = (totals[type].distance || 0) + (Number(workout.distance) || 0);
+  });
+  const imported = await getImportedMiFitness();
+  imported.forEach(workout => {
+    const raw = String(workout.label || "").toLowerCase();
+    const type = raw.includes("run") ? "Run" : raw.includes("badminton") ? "Badminton" : raw.includes("walk") ? "Other" : raw.includes("hiking") ? "Hiking" : raw.includes("yoga") ? "Yoga" : raw.includes("strength") || raw.includes("core") ? "Strength" : "Other";
+    totals[type].minutes += Number(workout.duration) || 0;
+    totals[type].distance = (totals[type].distance || 0) + (Number(workout.distance_km) || 0);
+  });
+  for (let wi = 0; wi < weeks.length; wi++) {
+    for (let di = 0; di < weeks[wi].days.length; di++) {
+      const outcome = await getDayOutcome(wi, di);
+      outcome.activities.forEach(activity => {
+        const type = activity.type === "easy" || RUN_TYPES.includes(activity.type) ? "Run" : activity.type === "legscore" || activity.type === "upperbody" ? "Strength" : ACTIVITY_LABELS[activity.type] || "Other";
+        if (!totals[type]) totals[type] = { minutes: 0 };
+        totals[type].minutes += Number(activity.minutes) || 0;
+        totals[type].distance = (totals[type].distance || 0) + (Number(activity.distance) || 0);
+      });
+    }
+  }
+  return totals;
+}
+
 async function saveCustomWorkout() {
   const date = document.getElementById("customWorkoutDate").value;
   const type = document.getElementById("customWorkoutType").value;
@@ -849,7 +878,8 @@ async function renderOverview() {
   const outcomes = await Promise.all(weeks.flatMap((week, wi) => week.days.map((_, di) => getDayOutcome(wi, di, doneMap))));
   const planned = weeks.reduce((sum, week) => sum + week.days.filter(day => day.type !== "rest").length, 0);
   const completed = outcomes.filter(outcome => outcome.completed && outcome.original.type !== "rest").length;
-  const completedKm = outcomes.reduce((sum, outcome) => sum + (outcome.completed ? (outcome.distance || (RUN_TYPES.includes(outcome.original.type) ? parseKm(outcome.original.detail) : 0)) : 0), 0);
+  const actualTotals = await getActualActivityTotals();
+  const completedKm = actualTotals.Run.distance;
   const plannedKm = weeks.reduce((sum, week) => sum + week.days.reduce((inner, day) => inner + (RUN_TYPES.includes(day.type) ? parseKm(day.detail) : 0), 0), 0);
   const extras = (await Promise.all(weeks.map((_, wi) => getActivities(wi)))).reduce((sum, list) => sum + list.length, 0);
   const percent = planned ? Math.round((completed / planned) * 100) : 0;
@@ -864,6 +894,10 @@ async function renderOverview() {
   document.getElementById("overviewGoalLabel").textContent = `${completed}/${planned} sessions`;
   document.getElementById("overviewKmLabel").textContent = `${completedKm.toFixed(1)} / ${plannedKm.toFixed(1)} km`;
   document.getElementById("overviewKmProgressBar").style.width = `${plannedKm ? Math.min((completedKm / plannedKm) * 100, 100) : 0}%`;
+  document.getElementById("activityHours").innerHTML = Object.entries(actualTotals)
+    .filter(([, value]) => value.minutes > 0)
+    .map(([type, value]) => `<span><strong>${type === "Run" ? `${(value.distance || 0).toFixed(1)} km` : `${(value.minutes / 60).toFixed(1)} h`}</strong> ${type}</span>`)
+    .join("");
   document.getElementById("overviewMessage").textContent = next
     ? `Next up: ${next.detail}. ${percent}% of your planned training is complete.`
     : "Your plan is outside the current date range.";

@@ -177,6 +177,9 @@
   .progress-label { display: flex; justify-content: space-between; color: #F4E9EE; font-size: 11px; margin: 10px 0 5px; }
   .progress-label strong { color: #fff; }
   .km-progress span { background: #D8ADAA; }
+  .activity-hours { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .activity-hours span { background: rgba(255,255,255,0.1); border-radius: 6px; padding: 6px 8px; color: #F4E9EE; font-size: 10px; }
+  .activity-hours strong { color: #fff; font-size: 12px; margin-right: 2px; }
   .overview-message { color: #F4E9EE; font-size: 12.5px; margin: 10px 0 0; }
   .custom-workout-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr; gap: 8px; margin-bottom: 8px; }
   .media-input-grid, .journal-grid, .editor-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
