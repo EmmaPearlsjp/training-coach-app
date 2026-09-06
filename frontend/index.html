@@ -72,6 +72,7 @@
     <button class="tab-btn" data-panel="log">My log</button>
     <button class="tab-btn" data-panel="reports">Reports</button>
     <button class="tab-btn" data-panel="physiology">Physiology</button>
+    <button class="tab-btn" data-panel="journal">Journal</button>
   </nav>
 
   <section class="panel active" id="plan">
@@ -153,6 +154,10 @@
         <input type="number" id="customWorkoutDistance" min="0" step="0.1" placeholder="Distance km" aria-label="Distance in kilometres">
       </div>
       <textarea id="customWorkoutNotes" placeholder="How did it feel? Optional notes"></textarea>
+      <div class="media-input-grid">
+        <input type="url" id="customWorkoutVideo" placeholder="YouTube link (optional)" aria-label="YouTube link">
+        <input type="url" id="customWorkoutImage" placeholder="Image link (optional)" aria-label="Image link">
+      </div>
       <button class="action" onclick="saveCustomWorkout()">Save workout</button>
       <div id="customWorkoutHistory" style="margin-top:12px;"></div>
     </div>
@@ -228,6 +233,14 @@
     <div class="phys-panel">
       <p class="phys-date" id="physReportDate"></p>
       <p class="sub" style="margin-bottom:16px;">Pulled from Mi Fitness — steps, workouts, and heart rate. Ask Claude to "pull my Mi Fitness data" any time to refresh this with a new dated report.</p>
+      <div class="log-card sync-card">
+        <h3>Sync a Mi Fitness backup</h3>
+        <p class="empty-note">Export your workout backup as JSON, then choose it here. Imported workouts are added to your history without replacing your original plan.</p>
+        <input type="file" id="miFitnessFile" accept=".json,application/json">
+        <button class="action" onclick="importMiFitnessBackup()">Import backup</button>
+        <p id="miFitnessStatus" class="empty-note"></p>
+        <div id="miFitnessHistory" style="margin-top:12px;"></div>
+      </div>
 
       <div class="stat-row" id="physStats"></div>
 
@@ -260,6 +273,44 @@
     </div>
   </section>
 
+  <section class="panel" id="journal">
+    <div class="log-card">
+      <h3>New journal entry</h3>
+      <div class="journal-grid">
+        <input type="date" id="journalDate" aria-label="Journal date">
+        <input type="text" id="journalTitle" placeholder="Title, e.g. First week reflections" aria-label="Journal title">
+        <input type="text" id="journalMood" placeholder="Mood or energy, e.g. calm / 7 out of 10" aria-label="Journal mood">
+      </div>
+      <input type="text" id="journalTags" placeholder="Tags, separated by commas">
+      <textarea id="journalBody" class="journal-body" placeholder="Write about your training, recovery, food, sleep, or anything on your mind..."></textarea>
+      <div class="media-input-grid">
+        <input type="url" id="journalVideo" placeholder="YouTube link (optional)">
+        <input type="url" id="journalImage" placeholder="Image link (optional)">
+      </div>
+      <button class="action" onclick="saveJournalEntry()">Save journal entry</button>
+    </div>
+    <div class="journal-toolbar">
+      <input type="search" id="journalSearch" placeholder="Search journal" oninput="renderJournalEntries()">
+    </div>
+    <div id="journalEntries"></div>
+  </section>
+
+</div>
+
+<div class="modal-backdrop" id="activity-editor" hidden>
+  <div class="activity-editor" role="dialog" aria-modal="true" aria-labelledby="activity-editor-title">
+    <button class="modal-close" onclick="closeActivityEditor()" aria-label="Close">×</button>
+    <p class="kicker">Plan day editor</p>
+    <h2 id="activity-editor-title">What did you actually do?</h2>
+    <input type="hidden" id="editor-week">
+    <input type="hidden" id="editor-day">
+    <label>Activity type<select id="editor-type"><option value="rest">Rest</option><option value="easy">Easy run</option><option value="intervals">Intervals</option><option value="tempo">Tempo</option><option value="hills">Hills</option><option value="long">Long run</option><option value="legscore">Legs & core</option><option value="upperbody">Upper body</option><option value="badminton">Badminton</option><option value="hiking">Hiking</option><option value="other">Other</option></select></label>
+    <label>Detailed entry<input type="text" id="editor-detail" placeholder="e.g. 45 min easy jog, felt comfortable"></label>
+    <div class="editor-two-col"><label>Minutes<input type="number" id="editor-minutes" min="0"></label><label>Distance km<input type="number" id="editor-distance" min="0" step="0.1"></label></div>
+    <label>Notes<textarea id="editor-notes" placeholder="How did it feel? Any pain, weather, or context?"></textarea></label>
+    <div class="media-input-grid"><input type="url" id="editor-video" placeholder="YouTube link"><input type="url" id="editor-image" placeholder="Image link"></div>
+    <button class="action" onclick="saveActivityOverride()">Save actual activity</button>
+  </div>
 </div>
 
 <script>

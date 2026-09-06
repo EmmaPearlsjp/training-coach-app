@@ -200,6 +200,7 @@ function renderWeeks() {
               <p class="day-title" id="day-title-${wi}-${di}">${d.detail}</p>
               <span class="badge b-${d.type}" id="day-badge-${wi}-${di}">${typeLabel(d.type)}</span>
               <div id="actual-${wi}-${di}"></div>
+              <button class="edit-day-btn" onclick="openActivityEditor(${wi},${di})">Log what I did</button>
             </div>
             <input type="checkbox" id="done-${wi}-${di}" onchange="saveDone(${wi},${di})">
           </div>
@@ -261,6 +262,52 @@ function renderActualDataForAllWeeks() {
 
 function toggleWeek(i) {
   document.getElementById(`wb-${i}`).classList.toggle("open");
+}
+
+async function getActivityOverride(wi, di) {
+  try {
+    const result = await window.storage.get(`plan-override:${wi}:${di}`, false);
+    return result && result.value ? JSON.parse(result.value) : null;
+  } catch (e) { return null; }
+}
+
+async function openActivityEditor(wi, di) {
+  const original = weeks[wi].days[di];
+  const override = await getActivityOverride(wi, di);
+  document.getElementById("editor-week").value = wi;
+  document.getElementById("editor-day").value = di;
+  document.getElementById("editor-type").value = override?.type || original.type;
+  document.getElementById("editor-detail").value = override?.detail || original.detail;
+  document.getElementById("editor-minutes").value = override?.minutes || "";
+  document.getElementById("editor-distance").value = override?.distance || parseKm(original.detail) || "";
+  document.getElementById("editor-notes").value = override?.notes || "";
+  document.getElementById("editor-video").value = override?.video || "";
+  document.getElementById("editor-image").value = override?.image || "";
+  document.getElementById("activity-editor").hidden = false;
+}
+
+function closeActivityEditor() {
+  document.getElementById("activity-editor").hidden = true;
+}
+
+async function saveActivityOverride() {
+  const wi = Number(document.getElementById("editor-week").value);
+  const di = Number(document.getElementById("editor-day").value);
+  const override = {
+    type: document.getElementById("editor-type").value,
+    detail: document.getElementById("editor-detail").value.trim(),
+    minutes: Number(document.getElementById("editor-minutes").value) || 0,
+    distance: Number(document.getElementById("editor-distance").value) || 0,
+    notes: document.getElementById("editor-notes").value.trim(),
+    video: document.getElementById("editor-video").value.trim(),
+    image: document.getElementById("editor-image").value.trim()
+  };
+  await window.storage.set(`plan-override:${wi}:${di}`, JSON.stringify(override), false);
+  const title = document.getElementById(`day-title-${wi}-${di}`);
+  const badge = document.getElementById(`day-badge-${wi}-${di}`);
+  if (title) title.textContent = override.detail || typeLabel(override.type);
+  if (badge) { badge.textContent = typeLabel(override.type); badge.className = `badge b-${override.type}`; }
+  closeActivityEditor();
 }
 
 const ACTIVITY_LABELS = { badminton: "Badminton", hiking: "Hiking", gym: "Gym", swim: "Swim", yoga: "Yoga", walk: "Walk", other: "Other" };
@@ -375,6 +422,15 @@ async function applySwapsForWeek(wi) {
     const detailBits = dayActivities.filter(a => a.details).map(a => a.details);
     if (titleEl) titleEl.textContent = labels.join(" + ") + (detailBits.length ? ` — ${detailBits.join("; ")}` : "");
     if (badgeEl) { badgeEl.textContent = labels[0]; badgeEl.className = `badge ${activityBadgeClass(dayActivities[0].type)}`; }
+  });
+
+  const overrides = await Promise.all(w.days.map((_, di) => getActivityOverride(wi, di)));
+  overrides.forEach((override, di) => {
+    if (!override) return;
+    const titleEl = document.getElementById(`day-title-${wi}-${di}`);
+    const badgeEl = document.getElementById(`day-badge-${wi}-${di}`);
+    if (titleEl) titleEl.textContent = override.detail || typeLabel(override.type);
+    if (badgeEl) { badgeEl.textContent = typeLabel(override.type); badgeEl.className = `badge b-${override.type}`; }
   });
 }
 
@@ -539,13 +595,17 @@ async function saveCustomWorkout() {
   const minutes = document.getElementById("customWorkoutMinutes").value;
   const distance = document.getElementById("customWorkoutDistance").value;
   const notes = document.getElementById("customWorkoutNotes").value.trim();
+  const video = document.getElementById("customWorkoutVideo").value.trim();
+  const image = document.getElementById("customWorkoutImage").value.trim();
   if (!date || !minutes) return;
   await window.storage.set(`custom-workout:${Date.now()}`, JSON.stringify({
-    date, type, minutes: Number(minutes), distance: distance ? Number(distance) : 0, notes
+    date, type, minutes: Number(minutes), distance: distance ? Number(distance) : 0, notes, video, image
   }), false);
   document.getElementById("customWorkoutMinutes").value = "";
   document.getElementById("customWorkoutDistance").value = "";
   document.getElementById("customWorkoutNotes").value = "";
+  document.getElementById("customWorkoutVideo").value = "";
+  document.getElementById("customWorkoutImage").value = "";
   await loadCustomWorkouts();
   renderOverview();
 }
@@ -556,10 +616,102 @@ async function loadCustomWorkouts() {
   const workouts = await getCustomWorkouts();
   el.innerHTML = workouts.length ? workouts.slice(0, 6).map(workout => `
     <div class="log-entry">
-      <span>${escapeHtml(workout.date)} · ${escapeHtml(workout.type)} · ${workout.minutes} min${workout.distance ? ` · ${workout.distance} km` : ""}</span>
+      <span>${escapeHtml(workout.date)} · ${escapeHtml(workout.type)} · ${workout.minutes} min${workout.distance ? ` · ${workout.distance} km` : ""}${workout.video ? ` · <a href="${escapeHtml(workout.video)}" target="_blank" rel="noreferrer">video</a>` : ""}${workout.image ? ` · <a href="${escapeHtml(workout.image)}" target="_blank" rel="noreferrer">image</a>` : ""}</span>
       <span class="val">${escapeHtml(workout.notes)}</span>
     </div>
   `).join("") : '<p class="empty-note">Your custom workouts will appear here.</p>';
+}
+
+async function getImportedMiFitness() {
+  try {
+    const list = await window.storage.list("mi-fitness:", false);
+    const entries = await Promise.all((list.keys || []).map(key => window.storage.get(key, false)));
+    return entries.filter(Boolean).map(entry => JSON.parse(entry.value));
+  } catch (e) { return []; }
+}
+
+async function importMiFitnessBackup() {
+  const file = document.getElementById("miFitnessFile").files[0];
+  const status = document.getElementById("miFitnessStatus");
+  if (!file) { status.textContent = "Choose a JSON backup first."; return; }
+  try {
+    const parsed = JSON.parse(await file.text());
+    const source = Array.isArray(parsed) ? parsed : (parsed.workouts || parsed.activities || parsed.data || []);
+    if (!Array.isArray(source) || source.length === 0) throw new Error("No workout array found");
+    let imported = 0;
+    for (const item of source) {
+      const date = item.date || item.startTime || item.start_time || item.start;
+      const type = item.type || item.activityType || item.name || "Mi Fitness activity";
+      if (!date) continue;
+      const workout = {
+        date: String(date).slice(0, 10),
+        label: String(type).replace(/_/g, " "),
+        duration: Number(item.duration || item.durationMinutes || item.duration_min || 0),
+        distance_km: Number(item.distance_km || item.distance || 0) || null,
+        avg_hr: Number(item.avg_hr || item.averageHeartRate || item.avgHeartRate || 0) || null,
+        max_hr: Number(item.max_hr || item.maxHeartRate || 0) || null,
+        calories: Number(item.calories || item.caloriesBurned || 0) || null,
+        source: "Mi Fitness import"
+      };
+      await window.storage.set(`mi-fitness:${workout.date}:${Date.now()}:${imported}`, JSON.stringify(workout), false);
+      imported++;
+    }
+    status.textContent = `${imported} workout${imported === 1 ? "" : "s"} imported.`;
+    renderImportedMiFitness();
+  } catch (error) {
+    status.textContent = "Could not read that file. Export a JSON workout backup and try again.";
+    console.error(error);
+  }
+}
+
+async function renderImportedMiFitness() {
+  const imported = await getImportedMiFitness();
+  const el = document.getElementById("miFitnessHistory");
+  if (!el) return;
+  el.innerHTML = imported.slice(-20).reverse().map(workout =>
+    `<div class="past-activity-entry"><span class="pa-date">${escapeHtml(workout.date)}</span> — ${escapeHtml(workout.label)} · ${workout.duration} min${workout.distance_km ? ` · ${workout.distance_km} km` : ""} · <span style="color:var(--dim);">${escapeHtml(workout.source)}</span></div>`
+  ).join("") || '<p class="no-activities">No imported workouts yet.</p>';
+}
+
+async function saveJournalEntry() {
+  const body = document.getElementById("journalBody").value.trim();
+  if (!body) return;
+  const entry = {
+    date: document.getElementById("journalDate").value || new Date().toISOString().slice(0, 10),
+    title: document.getElementById("journalTitle").value.trim() || "Untitled entry",
+    mood: document.getElementById("journalMood").value.trim(),
+    tags: document.getElementById("journalTags").value.trim(),
+    body,
+    video: document.getElementById("journalVideo").value.trim(),
+    image: document.getElementById("journalImage").value.trim()
+  };
+  await window.storage.set(`journal:${Date.now()}`, JSON.stringify(entry), false);
+  ["journalTitle", "journalMood", "journalTags", "journalBody", "journalVideo", "journalImage"].forEach(id => { document.getElementById(id).value = ""; });
+  await renderJournalEntries();
+}
+
+async function getJournalEntries() {
+  try {
+    const list = await window.storage.list("journal:", false);
+    const entries = await Promise.all((list.keys || []).sort().reverse().map(key => window.storage.get(key, false)));
+    return entries.filter(Boolean).map(entry => JSON.parse(entry.value));
+  } catch (e) { return []; }
+}
+
+async function renderJournalEntries() {
+  const el = document.getElementById("journalEntries");
+  if (!el) return;
+  const query = (document.getElementById("journalSearch").value || "").toLowerCase();
+  const entries = (await getJournalEntries()).filter(entry => `${entry.title} ${entry.body} ${entry.tags} ${entry.mood}`.toLowerCase().includes(query));
+  el.innerHTML = entries.map(entry => `
+    <article class="journal-entry">
+      <div class="journal-entry-meta">${escapeHtml(entry.date)}${entry.mood ? ` · ${escapeHtml(entry.mood)}` : ""}</div>
+      <h3>${escapeHtml(entry.title)}</h3>
+      ${entry.tags ? `<div class="journal-tags">${escapeHtml(entry.tags)}</div>` : ""}
+      <p>${escapeHtml(entry.body).replace(/\n/g, "<br>")}</p>
+      <div class="journal-links">${entry.video ? `<a href="${escapeHtml(entry.video)}" target="_blank" rel="noreferrer">YouTube video</a>` : ""}${entry.image ? `<a href="${escapeHtml(entry.image)}" target="_blank" rel="noreferrer">Image</a>` : ""}</div>
+    </article>
+  `).join("") || '<p class="empty-note">No journal entries match your search.</p>';
 }
 
 async function renderOverview() {
@@ -979,7 +1131,8 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
     btn.classList.add("active");
     document.getElementById(btn.dataset.panel).classList.add("active");
     if (btn.dataset.panel === "reports") renderDailyReport();
-    if (btn.dataset.panel === "physiology") renderPhysiologyTab();
+    if (btn.dataset.panel === "physiology") { renderPhysiologyTab(); renderImportedMiFitness(); }
+    if (btn.dataset.panel === "journal") renderJournalEntries();
   });
 });
 
@@ -1035,11 +1188,14 @@ renderCountdown();
 renderActualDataForAllWeeks();
 document.getElementById("wb-0").classList.add("open");
 document.getElementById("customWorkoutDate").value = new Date().toISOString().slice(0, 10);
+document.getElementById("journalDate").value = new Date().toISOString().slice(0, 10);
 loadActivities();
 loadDone();
 loadFeel();
 loadWeightHistory();
 loadMealHistory();
 loadCustomWorkouts();
+renderImportedMiFitness();
+renderJournalEntries();
 renderOverview();
 populateWeekSelect();
