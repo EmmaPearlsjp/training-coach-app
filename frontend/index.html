@@ -103,7 +103,7 @@
       <span class="b-hiking">Hiking</span>
     </div>
     <div id="weeksContainer"></div>
-    <p class="note">Add any extra activity — badminton, hiking, gym, swim, yoga, or something else — inside each week's card. Fit is checked automatically: fine on Rest / Upper Body days, and on a clash with Legs & Core or Upper Body you'll get a one-tap option to move that session to a free rest day. Clashes with a hard run day (Intervals / Tempo / Hills / Long Run / Time Trial / Race) are flagged but left for you to decide — those aren't safe to auto-move.</p>
+    <p class="note">Use <strong>Log what I did</strong> to replace a planned session, add multiple activities on the same day, or mark the day as rest/recovery. Reports use those actual entries when adapting completion and training load.</p>
   </section>
 
   <section class="panel" id="strength">
@@ -309,7 +309,8 @@
     <div class="editor-two-col"><label>Minutes<input type="number" id="editor-minutes" min="0"></label><label>Distance km<input type="number" id="editor-distance" min="0" step="0.1"></label></div>
     <label>Notes<textarea id="editor-notes" placeholder="How did it feel? Any pain, weather, or context?"></textarea></label>
     <div class="media-input-grid"><input type="url" id="editor-video" placeholder="YouTube link"><input type="url" id="editor-image" placeholder="Image link"></div>
-    <button class="action" onclick="saveActivityOverride()">Save actual activity</button>
+    <label class="rest-toggle"><input type="checkbox" id="editor-rest"> Mark this day as rest / recovery</label>
+    <div class="editor-actions"><button class="action" onclick="saveActivityOverride(false)">Save actual activity</button><button class="action secondary-action" onclick="saveActivityOverride(true)">Save + add another</button></div>
   </div>
 </div>
 

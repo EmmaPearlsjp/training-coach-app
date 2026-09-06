@@ -271,18 +271,38 @@ async function getActivityOverride(wi, di) {
   } catch (e) { return null; }
 }
 
+function overrideActivities(override) {
+  if (!override) return [];
+  if (Array.isArray(override.activities)) return override.activities;
+  return [override];
+}
+
+async function getDayOutcome(wi, di, doneMap) {
+  const original = weeks[wi].days[di];
+  const override = await getActivityOverride(wi, di);
+  const activities = overrideActivities(override);
+  const rest = Boolean(override && override.rest);
+  const completed = rest || activities.length > 0 || (doneMap || await getDoneMap())[wi]?.[di];
+  const distance = activities.reduce((sum, activity) => sum + (Number(activity.distance) || 0), 0);
+  const minutes = activities.reduce((sum, activity) => sum + (Number(activity.minutes) || 0), 0);
+  const effectiveTypes = activities.map(activity => activity.type);
+  return { original, override, activities, rest, completed: Boolean(completed), distance, minutes, effectiveTypes };
+}
+
 async function openActivityEditor(wi, di) {
   const original = weeks[wi].days[di];
   const override = await getActivityOverride(wi, di);
   document.getElementById("editor-week").value = wi;
   document.getElementById("editor-day").value = di;
-  document.getElementById("editor-type").value = override?.type || original.type;
-  document.getElementById("editor-detail").value = override?.detail || original.detail;
-  document.getElementById("editor-minutes").value = override?.minutes || "";
-  document.getElementById("editor-distance").value = override?.distance || parseKm(original.detail) || "";
-  document.getElementById("editor-notes").value = override?.notes || "";
-  document.getElementById("editor-video").value = override?.video || "";
-  document.getElementById("editor-image").value = override?.image || "";
+  const current = overrideActivities(override).slice(-1)[0];
+  document.getElementById("editor-type").value = current?.type || original.type;
+  document.getElementById("editor-detail").value = current?.detail || original.detail;
+  document.getElementById("editor-minutes").value = current?.minutes || "";
+  document.getElementById("editor-distance").value = current?.distance || parseKm(original.detail) || "";
+  document.getElementById("editor-notes").value = current?.notes || "";
+  document.getElementById("editor-video").value = current?.video || "";
+  document.getElementById("editor-image").value = current?.image || "";
+  document.getElementById("editor-rest").checked = Boolean(override?.rest);
   document.getElementById("activity-editor").hidden = false;
 }
 
@@ -290,10 +310,10 @@ function closeActivityEditor() {
   document.getElementById("activity-editor").hidden = true;
 }
 
-async function saveActivityOverride() {
+async function saveActivityOverride(addAnother) {
   const wi = Number(document.getElementById("editor-week").value);
   const di = Number(document.getElementById("editor-day").value);
-  const override = {
+  const activity = {
     type: document.getElementById("editor-type").value,
     detail: document.getElementById("editor-detail").value.trim(),
     minutes: Number(document.getElementById("editor-minutes").value) || 0,
@@ -302,12 +322,27 @@ async function saveActivityOverride() {
     video: document.getElementById("editor-video").value.trim(),
     image: document.getElementById("editor-image").value.trim()
   };
+  const existing = await getActivityOverride(wi, di);
+  const activities = addAnother ? overrideActivities(existing).concat(activity) : [activity];
+  const override = { activities, rest: document.getElementById("editor-rest").checked };
   await window.storage.set(`plan-override:${wi}:${di}`, JSON.stringify(override), false);
+  await window.storage.set(`done:${wi}:${di}`, "1", false);
   const title = document.getElementById(`day-title-${wi}-${di}`);
   const badge = document.getElementById(`day-badge-${wi}-${di}`);
-  if (title) title.textContent = override.detail || typeLabel(override.type);
-  if (badge) { badge.textContent = typeLabel(override.type); badge.className = `badge b-${override.type}`; }
-  closeActivityEditor();
+  const labels = activities.map(item => typeLabel(item.type));
+  if (title) title.textContent = override.rest ? "Rest / recovery" : labels.join(" + ");
+  if (badge) { badge.textContent = override.rest ? "Rest" : labels[0]; badge.className = `badge b-${override.rest ? "rest" : activities[0].type}`; }
+  if (addAnother) {
+    document.getElementById("editor-detail").value = "";
+    document.getElementById("editor-minutes").value = "";
+    document.getElementById("editor-distance").value = "";
+    document.getElementById("editor-notes").value = "";
+    document.getElementById("editor-video").value = "";
+    document.getElementById("editor-image").value = "";
+  } else {
+    closeActivityEditor();
+  }
+  renderOverview();
 }
 
 const ACTIVITY_LABELS = { badminton: "Badminton", hiking: "Hiking", gym: "Gym", swim: "Swim", yoga: "Yoga", walk: "Walk", other: "Other" };
@@ -429,8 +464,9 @@ async function applySwapsForWeek(wi) {
     if (!override) return;
     const titleEl = document.getElementById(`day-title-${wi}-${di}`);
     const badgeEl = document.getElementById(`day-badge-${wi}-${di}`);
-    if (titleEl) titleEl.textContent = override.detail || typeLabel(override.type);
-    if (badgeEl) { badgeEl.textContent = typeLabel(override.type); badgeEl.className = `badge b-${override.type}`; }
+    const activities = overrideActivities(override);
+    if (titleEl) titleEl.textContent = override.rest ? "Rest / recovery" : activities.map(activity => activity.detail || typeLabel(activity.type)).join(" + ");
+    if (badgeEl) { badgeEl.textContent = override.rest ? "Rest" : typeLabel(activities[0]?.type || "other"); badgeEl.className = `badge b-${override.rest ? "rest" : (activities[0]?.type || "extra")}`; }
   });
 }
 
@@ -718,9 +754,10 @@ async function renderOverview() {
   const stats = document.getElementById("overviewStats");
   if (!stats) return;
   const doneMap = await getDoneMap();
+  const outcomes = await Promise.all(weeks.flatMap((week, wi) => week.days.map((_, di) => getDayOutcome(wi, di, doneMap))));
   const planned = weeks.reduce((sum, week) => sum + week.days.filter(day => day.type !== "rest").length, 0);
-  const completed = weeks.reduce((sum, week, wi) => sum + week.days.reduce((inner, day, di) => inner + (day.type !== "rest" && doneMap[wi][di] ? 1 : 0), 0), 0);
-  const completedKm = weeks.reduce((sum, week, wi) => sum + week.days.reduce((inner, day, di) => inner + (RUN_TYPES.includes(day.type) && doneMap[wi][di] ? parseKm(day.detail) : 0), 0), 0);
+  const completed = outcomes.filter(outcome => outcome.completed && outcome.original.type !== "rest").length;
+  const completedKm = outcomes.reduce((sum, outcome) => sum + (outcome.completed ? (outcome.distance || (RUN_TYPES.includes(outcome.original.type) ? parseKm(outcome.original.detail) : 0)) : 0), 0);
   const extras = (await Promise.all(weeks.map((_, wi) => getActivities(wi)))).reduce((sum, list) => sum + list.length, 0);
   const percent = planned ? Math.round((completed / planned) * 100) : 0;
   const today = todayPosition();
@@ -841,9 +878,14 @@ const LOAD_POINTS = {
 
 async function computeWeekLoad(wi) {
   const doneMap = await getDoneMap();
-  const doneArr = doneMap[wi] || [];
   const w = weeks[wi];
-  const runLoad = w.days.reduce((s, d, di) => doneArr[di] ? s + (LOAD_POINTS[d.type] || 0) : s, 0);
+  const outcomes = await Promise.all(w.days.map((_, di) => getDayOutcome(wi, di, doneMap)));
+  const runLoad = outcomes.reduce((sum, outcome) => {
+    if (!outcome.completed || outcome.rest) return sum;
+    return sum + (outcome.activities.length
+      ? outcome.activities.reduce((inner, activity) => inner + (LOAD_POINTS[activity.type] || 2), 0)
+      : (LOAD_POINTS[outcome.original.type] || 0));
+  }, 0);
   const activities = await getActivities(wi);
   // Extra activities count toward load regardless of a "done" checkbox, since they're logged as happened.
   const activityLoad = activities.reduce((s, a) => s + (LOAD_POINTS[a.type] || 2), 0);
@@ -882,9 +924,10 @@ async function renderWeeklyReport() {
   const doneMap = await getDoneMap();
   const weekActivities = await getActivities(wi);
   const doneArr = doneMap[wi] || [];
-  const completedCount = doneArr.filter(Boolean).length;
+  const outcomes = await Promise.all(w.days.map((_, di) => getDayOutcome(wi, di, doneMap)));
+  const completedCount = outcomes.filter(outcome => outcome.completed && outcome.original.type !== "rest").length;
   const kmPlanned = w.days.filter(d => RUN_TYPES.includes(d.type)).reduce((s, d) => s + parseKm(d.detail), 0);
-  const kmDone = w.days.reduce((s, d, i) => RUN_TYPES.includes(d.type) && doneArr[i] ? s + parseKm(d.detail) : s, 0);
+  const kmDone = outcomes.reduce((s, outcome) => s + (outcome.completed ? (outcome.distance || (RUN_TYPES.includes(outcome.original.type) ? parseKm(outcome.original.detail) : 0)) : 0), 0);
   const activityCount = weekActivities.length;
   const feel = await getFeel(wi);
   const thisLoad = await computeWeekLoad(wi);
@@ -906,12 +949,12 @@ async function renderWeeklyReport() {
       labels: w.days.map(d => d.day),
       datasets: [{
         label: "Done",
-        data: doneArr.map(v => v ? 1 : 0),
-        backgroundColor: w.days.map((d, i) => doneArr[i] ? "#507555" : "rgba(80,52,71,0.14)")
+        data: outcomes.map(outcome => outcome.completed ? 1 : 0),
+        backgroundColor: outcomes.map(outcome => outcome.completed ? "#507555" : "rgba(80,52,71,0.14)")
       }]
     },
     options: {
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => w.days[ctx.dataIndex].detail } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => outcomes[ctx.dataIndex].rest ? "Rest / recovery" : (outcomes[ctx.dataIndex].activities.map(activity => activity.detail || typeLabel(activity.type)).join(" + ") || w.days[ctx.dataIndex].detail) } } },
       scales: {
         x: { ticks: { color: CHART_TEXT }, grid: { display: false } },
         y: { ticks: { display: false }, grid: { color: CHART_GRID }, max: 1 }

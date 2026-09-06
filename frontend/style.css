@@ -195,6 +195,9 @@
   .activity-editor input, .activity-editor textarea, .activity-editor select { margin-top: 5px; width: 100%; }
   .activity-editor textarea { min-height: 80px; }
   .modal-close { position: absolute; top: 10px; right: 12px; border: 0; background: transparent; color: var(--dim); font-size: 25px; cursor: pointer; }
+  .editor-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .rest-toggle { display: flex !important; align-items: center; gap: 7px; color: var(--ink-soft) !important; text-transform: none !important; font-size: 13px !important; }
+  .rest-toggle input { width: auto !important; }
   input[type="date"], input[type="text"], input[type="number"], input[type="url"], input[type="search"], input[type="file"] { background: #FFFFFF; border: 1px solid var(--line); color: var(--ink); padding: 9px 10px; border-radius: 6px; font-size: 13.5px; font-family: inherit; width: 100%; }
 
   @media (max-width: 560px) {
