@@ -312,7 +312,7 @@
   <section class="panel" id="physiology">
     <div class="phys-panel">
       <p class="phys-date" id="physReportDate"></p>
-      <p class="sub" style="margin-bottom:16px;">Pulled from Mi Fitness — steps, workouts, and heart rate. Ask Claude to "pull my Mi Fitness data" any time to refresh this with a new dated report.</p>
+      <p class="sub" style="margin-bottom:16px;">Pulled from Mi Fitness — steps, workouts, heart rate, and breathing data when your export contains it. Use trends from similar sessions rather than comparing different activities directly.</p>
       <div class="log-card sync-card">
         <h3>Sync a Mi Fitness backup</h3>
         <p class="empty-note">Export your workout backup as JSON, then choose it here. Imported workouts are added to your history without replacing your original plan.</p>
@@ -336,8 +336,14 @@
         <h4>Heart rate during runs — average vs. peak</h4>
         <canvas id="physHrChart"></canvas>
       </div>
+      <div class="chart-card phys-card">
+        <h4>Breathing rate during recorded workouts</h4>
+        <canvas id="physBreathingChart"></canvas>
+        <p class="empty-note">Breaths/min is only shown when Mi Fitness provides a respiratory-rate field. Missing data is normal.</p>
+      </div>
 
       <div id="physInsights"></div>
+      <div class="chart-card phys-card" id="breathingGuidance"></div>
 
       <div class="chart-card phys-card">
         <h4>Past activity — before the plan started (Sept 6)</h4>
@@ -487,7 +493,7 @@
     }
   });
 </script>
-<script src="storage-adapter.js?v=activity-tags-1"></script>
-<script src="app.js?v=activity-tags-1"></script>
+<script src="storage-adapter.js?v=physiology-breathing-1"></script>
+<script src="app.js?v=physiology-breathing-1"></script>
 </body>
 </html>

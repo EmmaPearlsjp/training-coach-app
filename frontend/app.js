@@ -849,6 +849,7 @@ async function importMiFitnessBackup() {
         distance_km: Number(item.distance_km || item.distance || 0) || null,
         avg_hr: Number(item.avg_hr || item.averageHeartRate || item.avgHeartRate || 0) || null,
         max_hr: Number(item.max_hr || item.maxHeartRate || 0) || null,
+        breathing_rate: Number(item.breathing_rate || item.breathingRate || item.respiratory_rate || item.respiratoryRate || item.avg_respiration || 0) || null,
         calories: Number(item.calories || item.caloriesBurned || 0) || null,
         source: "Mi Fitness import"
       };
@@ -868,7 +869,7 @@ async function renderImportedMiFitness() {
   const el = document.getElementById("miFitnessHistory");
   if (!el) return;
   el.innerHTML = imported.slice(-20).reverse().map(workout =>
-    `<div class="past-activity-entry"><span class="pa-date">${escapeHtml(workout.date)}</span> — ${escapeHtml(workout.label)} · ${workout.duration} min${workout.distance_km ? ` · ${workout.distance_km} km` : ""} · <span style="color:var(--dim);">${escapeHtml(workout.source)}</span></div>`
+    `<div class="past-activity-entry"><span class="pa-date">${escapeHtml(workout.date)}</span> — ${escapeHtml(workout.label)} · ${workout.duration} min${workout.distance_km ? ` · ${workout.distance_km} km` : ""}${workout.breathing_rate ? ` · ${workout.breathing_rate} breaths/min` : ""} · <span style="color:var(--dim);">${escapeHtml(workout.source)}</span></div>`
   ).join("") || '<p class="no-activities">No imported workouts yet.</p>';
 }
 
@@ -1406,13 +1407,42 @@ function renderPastActivity() {
   el.innerHTML = sorted.map(a => {
     const distBit = a.distance_km ? ` · ${a.distance_km}km` : "";
     const hrBit = a.avg_hr ? ` · avg HR ${a.avg_hr}${a.max_hr ? ` (peak ${a.max_hr})` : ""}` : "";
+    const breathingBit = a.breathing_rate ? ` · ${a.breathing_rate} breaths/min` : "";
     const calBit = a.calories ? ` · ${a.calories} kcal` : "";
     const noteBit = a.note ? ` <em>(${a.note})</em>` : "";
     return `<div class="past-activity-entry">
-      <span class="pa-date">${a.date}</span> — ${a.label} · ${a.duration} min${distBit}${hrBit}${calBit}
+      <span class="pa-date">${a.date}</span> — ${a.label} · ${a.duration} min${distBit}${hrBit}${breathingBit}${calBit}
       <span style="color:var(--dim);"> · ${a.source}</span>${noteBit}
     </div>`;
   }).join("");
+}
+
+async function getBreathingHistory() {
+  const seed = PAST_ACTIVITIES.filter(activity => activity.breathing_rate).map(activity => ({
+    date: activity.date, label: activity.label, breathing_rate: activity.breathing_rate, avg_hr: activity.avg_hr
+  }));
+  const imported = (await getImportedMiFitness()).filter(activity => activity.breathing_rate).map(activity => ({
+    date: activity.date, label: activity.label, breathing_rate: activity.breathing_rate, avg_hr: activity.avg_hr
+  }));
+  return [...seed, ...imported].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+}
+
+function breathingAdvice(history) {
+  if (!history.length) {
+    return `<h4>How to use breathing data</h4><p>No breathing-rate values were found in the current Mi Fitness data. If your export supports respiratory rate, import the workout JSON and the chart will appear. In the meantime, record whether you could speak in short sentences on easy runs.</p>`;
+  }
+  const recent = history.slice(-3);
+  const average = Math.round(recent.reduce((sum, item) => sum + Number(item.breathing_rate), 0) / recent.length);
+  const earlier = history.length > 3 ? history.slice(0, -3) : history;
+  const baseline = Math.round(earlier.reduce((sum, item) => sum + Number(item.breathing_rate), 0) / earlier.length);
+  const change = average - baseline;
+  const direction = change <= -2 ? "lower" : change >= 2 ? "higher" : "similar";
+  const suggestion = change <= -2
+    ? "That can be a positive sign when pace and effort are comparable: keep most running conversational and progress distance gradually."
+    : change >= 2
+      ? "Treat this as a recovery signal, not a fitness failure. Repeat easy intensity, warm up longer, and check sleep, heat, hydration, and illness before adding load."
+      : "The trend is broadly stable. Build breathing control with easy conversational running, relaxed shoulders, and a steady exhale rather than forcing a breathing pattern.";
+  return `<h4>Breathing guidance</h4><p>Recent recorded breathing averaged <strong>${average} breaths/min</strong>, ${direction} than the earlier comparison (${baseline}). ${suggestion}</p><p class="empty-note">Compare similar activities at similar effort. Wearable respiratory estimates can be noisy and cannot diagnose breathing problems. Seek medical advice for chest pain, faintness, wheezing, or unusual shortness of breath.</p>`;
 }
 
 async function renderPhysiologyTab() {
@@ -1422,12 +1452,18 @@ async function renderPhysiologyTab() {
   const totalWorkouts = Object.values(ACTUAL_WORKOUTS).reduce((s, arr) => s + arr.length, 0);
   const totalMinutes = Object.values(ACTUAL_WORKOUTS).reduce((s, arr) => s + arr.reduce((s2, a) => s2 + a.duration, 0), 0);
   const peakHr = Math.max(...Object.values(ACTUAL_WORKOUTS).flat().map(a => a.max_hr || 0));
+  const breathingHistory = await getBreathingHistory();
+  const recentHr = RUN_HR_HISTORY.slice(-3);
+  const earlierHr = RUN_HR_HISTORY.slice(0, -3);
+  const recentAvgHr = recentHr.length ? Math.round(recentHr.reduce((sum, item) => sum + item.avg, 0) / recentHr.length) : 0;
+  const baselineAvgHr = earlierHr.length ? Math.round(earlierHr.reduce((sum, item) => sum + item.avg, 0) / earlierHr.length) : recentAvgHr;
 
   document.getElementById("physStats").innerHTML = `
     <div class="stat-box"><div class="num">${avgSteps.toLocaleString()}</div><div class="lbl">Avg daily steps</div></div>
     <div class="stat-box"><div class="num">${totalWorkouts}</div><div class="lbl">Workouts logged</div></div>
     <div class="stat-box"><div class="num">${(totalMinutes / 60).toFixed(1)}h</div><div class="lbl">Total training time</div></div>
     <div class="stat-box"><div class="num">${peakHr}</div><div class="lbl">Peak HR observed</div></div>
+    <div class="stat-box"><div class="num">${breathingHistory.length ? `${Math.round(breathingHistory.slice(-3).reduce((s, a) => s + Number(a.breathing_rate), 0) / Math.min(3, breathingHistory.length))}` : "—"}</div><div class="lbl">Recent breaths/min</div></div>
   `;
 
   const physChartText = "#8A8A8A";
@@ -1469,12 +1505,22 @@ async function renderPhysiologyTab() {
     options: { plugins: { legend: { labels: { color: physChartText, font: { size: 11 } } } }, scales: { x: { ticks: { color: physChartText }, grid: { display: false } }, y: { ticks: { color: physChartText }, grid: { color: physChartGrid }, min: 120, max: 210 } } }
   });
 
+  destroyChart("physBreathingChart");
+  charts.physBreathingChart = new Chart(document.getElementById("physBreathingChart"), {
+    type: "line",
+    data: {
+      labels: breathingHistory.map(item => item.date),
+      datasets: [{ label: "Breaths/min", data: breathingHistory.map(item => item.breathing_rate), borderColor: "#B25074", backgroundColor: "rgba(178,80,116,0.12)", fill: true, tension: 0.25, pointRadius: 3 }]
+    },
+    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: physChartText }, grid: { display: false } }, y: { ticks: { color: physChartText }, grid: { color: physChartGrid }, suggestedMin: 8, suggestedMax: 40, title: { display: true, text: "breaths/min", color: physChartText } } } }
+  });
+
   const avgRunHr = Math.round(RUN_HR_HISTORY.reduce((s, r) => s + r.avg, 0) / RUN_HR_HISTORY.length);
   document.getElementById("physInsights").innerHTML = `
     <div class="insight-flag">
       <span class="tag">Worth fixing</span>
       <h3>Your "easy" runs aren't easy</h3>
-      <p>Average heart rate across your real runs was <strong>${avgRunHr} bpm</strong> — peak observed anywhere in the data was ${peakHr} bpm. That's roughly ${Math.round((avgRunHr/peakHr)*100)}% of peak sustained for the whole run, not just the finish. Slow down until you could hold a conversation, even if that means a slower pace than the plan implies.</p>
+      <p>Average heart rate across your real runs was <strong>${avgRunHr} bpm</strong> — peak observed anywhere in the data was ${peakHr} bpm. Recent runs average ${recentAvgHr} bpm versus ${baselineAvgHr} bpm earlier. Compare at similar pace and effort; slow down until you could hold a conversation, even if that means a slower pace than the plan implies.</p>
     </div>
     <div class="insight-normal">
       <span class="tag tag-watch">Watch this</span>
@@ -1487,6 +1533,7 @@ async function renderPhysiologyTab() {
       <p>Consistently low HR (110-130 bpm) — genuine easy-effort recovery activity. No change needed.</p>
     </div>
   `;
+  document.getElementById("breathingGuidance").innerHTML = breathingAdvice(breathingHistory);
 
   renderPastActivity();
   await saveReportToHistory();
