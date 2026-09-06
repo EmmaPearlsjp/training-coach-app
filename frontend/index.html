@@ -75,6 +75,18 @@
   </nav>
 
   <section class="panel active" id="plan">
+    <section class="dashboard-overview" aria-labelledby="overview-title">
+      <div class="overview-heading">
+        <div>
+          <p class="kicker">Your training dashboard</p>
+          <h2 id="overview-title">Small steps, strong finish.</h2>
+        </div>
+        <button class="action secondary-action" onclick="openTodayReport()">See today</button>
+      </div>
+      <div class="overview-grid" id="overviewStats"></div>
+      <div class="overview-progress"><span id="overviewProgressBar"></span></div>
+      <p class="overview-message" id="overviewMessage"></p>
+    </section>
     <div class="legend">
       <span class="b-rest">Rest</span>
       <span class="b-easy">Easy run</span>
@@ -130,6 +142,20 @@
   </section>
 
   <section class="panel" id="log">
+    <div class="log-card">
+      <h3>Log a workout</h3>
+      <div class="custom-workout-grid">
+        <input type="date" id="customWorkoutDate" aria-label="Workout date">
+        <select id="customWorkoutType" aria-label="Workout type">
+          <option>Run</option><option>Badminton</option><option>Strength</option><option>Hiking</option><option>Yoga</option><option>Other</option>
+        </select>
+        <input type="number" id="customWorkoutMinutes" min="1" placeholder="Minutes" aria-label="Duration in minutes">
+        <input type="number" id="customWorkoutDistance" min="0" step="0.1" placeholder="Distance km" aria-label="Distance in kilometres">
+      </div>
+      <textarea id="customWorkoutNotes" placeholder="How did it feel? Optional notes"></textarea>
+      <button class="action" onclick="saveCustomWorkout()">Save workout</button>
+      <div id="customWorkoutHistory" style="margin-top:12px;"></div>
+    </div>
     <div class="log-card">
       <h3>Log weight (optional)</h3>
       <div class="weight-input-row">

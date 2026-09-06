@@ -162,3 +162,37 @@
   .actual-data { background: #F7F7F7; border-radius: 6px; padding: 8px 10px; margin-top: 6px; font-size: 12px; color: var(--ink-soft); }
   .actual-data strong { color: var(--ink); }
   .actual-flag { color: var(--accent-dark); font-weight: 600; }
+
+  .dashboard-overview { background: linear-gradient(135deg, var(--ink), #6C3D59); color: #fff; border-radius: 14px; padding: 18px; margin-bottom: 18px; }
+  .overview-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .overview-heading .kicker { color: #F0B8A8; margin-bottom: 4px; }
+  .overview-heading h2 { font-size: 21px; line-height: 1.2; margin: 0; color: #fff; }
+  .secondary-action { background: rgba(255,255,255,0.14) !important; }
+  .overview-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 18px 0 12px; }
+  .overview-stat { background: rgba(255,255,255,0.1); border-radius: 9px; padding: 11px; }
+  .overview-stat strong { display: block; font-size: 19px; }
+  .overview-stat span { display: block; color: #E5D8DF; font-size: 10px; margin-top: 2px; text-transform: uppercase; letter-spacing: .03em; }
+  .overview-progress { height: 7px; background: rgba(255,255,255,0.18); border-radius: 99px; overflow: hidden; }
+  .overview-progress span { display: block; height: 100%; width: 0; background: #F0B8A8; border-radius: inherit; transition: width .3s ease; }
+  .overview-message { color: #F4E9EE; font-size: 12.5px; margin: 10px 0 0; }
+  .custom-workout-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  input[type="date"], input[type="text"], input[type="number"] { background: #FFFFFF; border: 1px solid var(--line); color: var(--ink); padding: 9px 10px; border-radius: 6px; font-size: 13.5px; font-family: inherit; width: 100%; }
+
+  @media (max-width: 560px) {
+    .wrap { padding: 16px 11px 40px; }
+    h1 { font-size: 23px; }
+    .sub { font-size: 13px; }
+    nav.tabs button { padding: 9px 10px; font-size: 12px; }
+    .overview-heading h2 { font-size: 18px; }
+    .overview-grid { gap: 6px; }
+    .overview-stat { padding: 9px 7px; }
+    .overview-stat strong { font-size: 16px; }
+    .overview-stat span { font-size: 9px; }
+    .overview-message { font-size: 12px; }
+    .custom-workout-grid { grid-template-columns: 1fr 1fr; }
+    .add-activity-row { flex-direction: column; }
+    .day-row { grid-template-columns: 35px 1fr 24px; gap: 7px; }
+    .day-title { font-size: 13.5px; }
+    .bad-row { flex-wrap: wrap; }
+    .feel-btn { min-width: 30%; }
+  }

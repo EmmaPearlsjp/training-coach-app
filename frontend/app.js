@@ -305,6 +305,7 @@ async function addActivity(wi) {
   await saveActivities(wi, list);
   document.getElementById(`act-details-${wi}`).value = "";
   renderActivityList(wi);
+  renderOverview();
 }
 
 async function removeActivity(wi, id) {
@@ -478,6 +479,7 @@ async function saveDone(wi, di) {
   try {
     await window.storage.set(`done:${wi}:${di}`, checked ? "1" : "0", false);
   } catch (e) { console.error(e); }
+  renderOverview();
 }
 
 async function loadDone() {
@@ -511,6 +513,79 @@ async function getDoneMap() {
 async function getActivitiesForDay(wi, dayName) {
   const list = await getActivities(wi);
   return list.filter(a => a.day === dayName);
+}
+
+function escapeHtml(value) {
+  return String(value || "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[char]));
+}
+
+async function getCustomWorkouts() {
+  try {
+    const list = await window.storage.list("custom-workout:", false);
+    if (!list || !list.keys) return [];
+    const entries = await Promise.all(list.keys.sort().reverse().map(key => window.storage.get(key, false)));
+    return entries.filter(Boolean).map(entry => JSON.parse(entry.value));
+  } catch (e) {
+    console.error(e);
+    return [];
+  }
+}
+
+async function saveCustomWorkout() {
+  const date = document.getElementById("customWorkoutDate").value;
+  const type = document.getElementById("customWorkoutType").value;
+  const minutes = document.getElementById("customWorkoutMinutes").value;
+  const distance = document.getElementById("customWorkoutDistance").value;
+  const notes = document.getElementById("customWorkoutNotes").value.trim();
+  if (!date || !minutes) return;
+  await window.storage.set(`custom-workout:${Date.now()}`, JSON.stringify({
+    date, type, minutes: Number(minutes), distance: distance ? Number(distance) : 0, notes
+  }), false);
+  document.getElementById("customWorkoutMinutes").value = "";
+  document.getElementById("customWorkoutDistance").value = "";
+  document.getElementById("customWorkoutNotes").value = "";
+  await loadCustomWorkouts();
+  renderOverview();
+}
+
+async function loadCustomWorkouts() {
+  const el = document.getElementById("customWorkoutHistory");
+  if (!el) return;
+  const workouts = await getCustomWorkouts();
+  el.innerHTML = workouts.length ? workouts.slice(0, 6).map(workout => `
+    <div class="log-entry">
+      <span>${escapeHtml(workout.date)} · ${escapeHtml(workout.type)} · ${workout.minutes} min${workout.distance ? ` · ${workout.distance} km` : ""}</span>
+      <span class="val">${escapeHtml(workout.notes)}</span>
+    </div>
+  `).join("") : '<p class="empty-note">Your custom workouts will appear here.</p>';
+}
+
+async function renderOverview() {
+  const stats = document.getElementById("overviewStats");
+  if (!stats) return;
+  const doneMap = await getDoneMap();
+  const planned = weeks.reduce((sum, week) => sum + week.days.filter(day => day.type !== "rest").length, 0);
+  const completed = weeks.reduce((sum, week, wi) => sum + week.days.reduce((inner, day, di) => inner + (day.type !== "rest" && doneMap[wi][di] ? 1 : 0), 0), 0);
+  const completedKm = weeks.reduce((sum, week, wi) => sum + week.days.reduce((inner, day, di) => inner + (RUN_TYPES.includes(day.type) && doneMap[wi][di] ? parseKm(day.detail) : 0), 0), 0);
+  const extras = (await Promise.all(weeks.map((_, wi) => getActivities(wi)))).reduce((sum, list) => sum + list.length, 0);
+  const percent = planned ? Math.round((completed / planned) * 100) : 0;
+  const today = todayPosition();
+  const next = today ? weeks[today.wi].days[today.di] : null;
+  stats.innerHTML = `
+    <div class="overview-stat"><strong>${completed}/${planned}</strong><span>sessions done</span></div>
+    <div class="overview-stat"><strong>${completedKm.toFixed(1)} km</strong><span>completed running</span></div>
+    <div class="overview-stat"><strong>${extras}</strong><span>extra activities</span></div>
+  `;
+  document.getElementById("overviewProgressBar").style.width = `${Math.min(percent, 100)}%`;
+  document.getElementById("overviewMessage").textContent = next
+    ? `Next up: ${next.detail}. ${percent}% of your planned training is complete.`
+    : "Your plan is outside the current date range.";
+}
+
+function openTodayReport() {
+  document.querySelector('[data-panel="reports"]').click();
 }
 
 async function getAllWeights() {
@@ -959,9 +1034,12 @@ renderWeeks();
 renderCountdown();
 renderActualDataForAllWeeks();
 document.getElementById("wb-0").classList.add("open");
+document.getElementById("customWorkoutDate").value = new Date().toISOString().slice(0, 10);
 loadActivities();
 loadDone();
 loadFeel();
 loadWeightHistory();
 loadMealHistory();
+loadCustomWorkouts();
+renderOverview();
 populateWeekSelect();
