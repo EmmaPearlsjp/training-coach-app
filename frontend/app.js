@@ -6,6 +6,8 @@ const CHART_TEXT = "#8A7A80";
 const CHART_GRID = "rgba(80,52,71,0.14)";
 const RACE_DATE = new Date(2026, 10, 21); // Nov 21 2026
 let charts = {};
+let calendarCursor = new Date();
+calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1);
 
 function renderCountdown() {
   const today = new Date();
@@ -668,13 +670,18 @@ async function saveCustomWorkout() {
   const image = document.getElementById("customWorkoutImage").value.trim();
   if (!date || !minutes) return;
   await window.storage.set(`custom-workout:${Date.now()}`, JSON.stringify({
-    date, type, minutes: Number(minutes), distance: distance ? Number(distance) : 0, notes, video, image
+    date, type, minutes: Number(minutes), distance: distance ? Number(distance) : 0, notes, video, image,
+    effort: Number(document.getElementById("customWorkoutEffort").value) || 0,
+    heartRate: Number(document.getElementById("customWorkoutHeartRate").value) || 0,
+    energy: Number(document.getElementById("customWorkoutEnergy").value) || 0,
+    pain: document.getElementById("customWorkoutPain").value.trim()
   }), false);
   document.getElementById("customWorkoutMinutes").value = "";
   document.getElementById("customWorkoutDistance").value = "";
   document.getElementById("customWorkoutNotes").value = "";
   document.getElementById("customWorkoutVideo").value = "";
   document.getElementById("customWorkoutImage").value = "";
+  ["customWorkoutEffort", "customWorkoutHeartRate", "customWorkoutEnergy", "customWorkoutPain"].forEach(id => { document.getElementById(id).value = ""; });
   await loadCustomWorkouts();
   renderOverview();
 }
@@ -685,7 +692,7 @@ async function loadCustomWorkouts() {
   const workouts = await getCustomWorkouts();
   el.innerHTML = workouts.length ? workouts.slice(0, 6).map(workout => `
     <div class="log-entry">
-      <span>${escapeHtml(workout.date)} · ${escapeHtml(workout.type)} · ${workout.minutes} min${workout.distance ? ` · ${workout.distance} km` : ""}${workout.video ? ` · <a href="${escapeHtml(workout.video)}" target="_blank" rel="noreferrer">video</a>` : ""}${workout.image ? ` · <a href="${escapeHtml(workout.image)}" target="_blank" rel="noreferrer">image</a>` : ""}</span>
+      <span>${escapeHtml(workout.date)} · ${escapeHtml(workout.type)} · ${workout.minutes} min${workout.distance ? ` · ${workout.distance} km` : ""}${workout.effort ? ` · RPE ${workout.effort}` : ""}${workout.heartRate ? ` · HR ${workout.heartRate}` : ""}${workout.video ? ` · <a href="${escapeHtml(workout.video)}" target="_blank" rel="noreferrer">video</a>` : ""}${workout.image ? ` · <a href="${escapeHtml(workout.image)}" target="_blank" rel="noreferrer">image</a>` : ""}</span>
       <span class="val">${escapeHtml(workout.notes)}</span>
     </div>
   `).join("") : '<p class="empty-note">Your custom workouts will appear here.</p>';
@@ -902,9 +909,125 @@ async function renderOverview() {
     .filter(([, value]) => value.minutes > 0)
     .map(([type, value]) => `<span><strong>${type === "Run" ? `${(value.distance || 0).toFixed(1)} km` : `${(value.minutes / 60).toFixed(1)} h`}</strong> ${type}</span>`)
     .join("");
+  const todayBrief = document.getElementById("todayBrief");
+  if (todayBrief) {
+    const recent = (await getCustomWorkouts()).filter(w => w.date >= new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10));
+    const hard = recent.filter(w => Number(w.effort) >= 8).length;
+    const hasPain = recent.some(w => w.pain);
+    const readiness = hasPain ? "Recovery first" : hard >= 2 ? "Keep the next session easy" : "Ready to build consistently";
+    const detail = hasPain ? "You recorded discomfort recently. Choose rest or low-impact movement and avoid pushing through pain." : hard >= 2 ? `${hard} high-effort sessions were logged in the last 7 days. Protect the easy days and sleep.` : "Your recent load is manageable. Follow the next planned session and record effort so the guidance gets smarter.";
+    todayBrief.innerHTML = `<strong>${readiness}</strong><span>${detail}</span>`;
+  }
   document.getElementById("overviewMessage").textContent = next
     ? `Next up: ${next.detail}. ${percent}% of your planned training is complete.`
     : "Your plan is outside the current date range.";
+}
+
+async function getGoals() {
+  try {
+    const list = await window.storage.list("goal:", false);
+    const entries = await Promise.all((list.keys || []).map(key => window.storage.get(key, false)));
+    return entries.filter(Boolean).map(entry => ({ key: entry.key, ...JSON.parse(entry.value) }));
+  } catch (e) { return []; }
+}
+
+async function saveGoal() {
+  const name = document.getElementById("goalName").value.trim();
+  const target = Number(document.getElementById("goalTarget").value);
+  if (!name || !target) return;
+  const goal = { name, metric: document.getElementById("goalMetric").value, target, deadline: document.getElementById("goalDeadline").value };
+  await window.storage.set(`goal:${Date.now()}`, JSON.stringify(goal), false);
+  document.getElementById("goalName").value = "";
+  document.getElementById("goalTarget").value = "";
+  renderGoals();
+}
+
+async function deleteGoal(key) {
+  await window.storage.delete(key, false);
+  renderGoals();
+}
+
+async function getGoalProgress(goal) {
+  const totals = await getActualActivityTotals();
+  const doneMap = await getDoneMap();
+  const outcomes = await Promise.all(weeks.flatMap((week, wi) => week.days.map((_, di) => getDayOutcome(wi, di, doneMap))));
+  const custom = await getCustomWorkouts();
+  let value = 0;
+  if (goal.metric === "distance") value = totals.Run.distance;
+  if (goal.metric === "minutes") value = Object.values(totals).reduce((s, v) => s + (v.minutes || 0), 0);
+  if (goal.metric === "sessions") value = outcomes.filter(o => o.completed && o.original.type !== "rest").length;
+  if (goal.metric === "longest") value = Math.max(0, ...custom.filter(w => w.type === "Run").map(w => Number(w.distance) || 0), ...outcomes.map(o => Number(o.distance) || 0));
+  return value;
+}
+
+async function renderGoals() {
+  const el = document.getElementById("goalsList");
+  if (!el) return;
+  const goals = await getGoals();
+  if (!goals.length) { el.innerHTML = '<p class="empty-note">Add one or two measurable objectives to make the dashboard personal.</p>'; return; }
+  const cards = await Promise.all(goals.map(async goal => {
+    const value = await getGoalProgress(goal);
+    const percent = Math.min(100, Math.round((value / goal.target) * 100));
+    const deadline = goal.deadline ? ` · target ${escapeHtml(goal.deadline)}` : "";
+    return `<div class="goal-card"><div class="goal-card-head"><div><p class="goal-status">${percent >= 100 ? "Achieved" : percent >= 70 ? "On track" : "Building"}</p><h3>${escapeHtml(goal.name)}</h3></div><button class="activity-remove" onclick="deleteGoal('${escapeHtml(goal.key)}')">×</button></div><div class="progress-label"><span>${value.toFixed(goal.metric === "sessions" ? 0 : 1)} / ${goal.target}${goal.metric === "distance" || goal.metric === "longest" ? " km" : goal.metric === "minutes" ? " min" : " sessions"}</span><strong>${percent}%${deadline}</strong></div><div class="goal-progress"><span style="width:${percent}%"></span></div></div>`;
+  }));
+  el.innerHTML = cards.join("");
+}
+
+function calendarDateKey(year, month, day) {
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+async function renderCalendar() {
+  const grid = document.getElementById("calendarGrid");
+  const listEl = document.getElementById("timelineList");
+  if (!grid) return;
+  const year = calendarCursor.getFullYear();
+  const month = calendarCursor.getMonth();
+  document.getElementById("calendarTitle").textContent = calendarCursor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const custom = await getCustomWorkouts();
+  const imported = await getImportedMiFitness();
+  const keys = new Set([...custom.map(w => w.date), ...imported.map(w => w.date)]);
+  grid.innerHTML = DAY_LABELS.map(d => `<div class="calendar-weekday">${d}</div>`).join("") + Array.from({ length: firstDay }, () => '<div class="calendar-day empty"></div>').join("") + Array.from({ length: daysInMonth }, (_, i) => { const key = calendarDateKey(year, month, i + 1); return `<button class="calendar-day ${keys.has(key) ? "has-data" : ""}" onclick="showCalendarDay('${key}')"><strong>${i + 1}</strong>${keys.has(key) ? "<span>●</span>" : ""}</button>`; }).join("");
+  const monthItems = [...custom, ...imported].filter(w => String(w.date || "").startsWith(`${year}-${String(month + 1).padStart(2, "0")}`)).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  listEl.innerHTML = monthItems.length ? monthItems.map(w => `<div class="timeline-item"><strong>${escapeHtml(w.date)}</strong><span>${escapeHtml(w.type || w.label || "Activity")} · ${w.minutes || w.duration || 0} min${w.distance || w.distance_km ? ` · ${w.distance || w.distance_km} km` : ""}</span></div>`).join("") : '<p class="empty-note">No logged activities this month.</p>';
+}
+
+function shiftCalendar(amount) { calendarCursor.setMonth(calendarCursor.getMonth() + amount); renderCalendar(); }
+function showCalendarDay(date) {
+  calendarCursor = new Date(`${date}T00:00:00`);
+  calendarCursor.setDate(1);
+  renderCalendar();
+  document.getElementById("timelineList").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function exportTrainingData() {
+  const keys = ["custom-workout:", "plan-override:", "done:", "activities:", "swaps:", "feel:", "journal:", "food:", "weight:", "meal:", "goal:", "mi-fitness:"];
+  const data = { exportedAt: new Date().toISOString(), version: 1, records: {} };
+  for (const prefix of keys) {
+    const list = await window.storage.list(prefix, false);
+    data.records[prefix] = {};
+    for (const key of (list.keys || [])) { const entry = await window.storage.get(key, false); if (entry) data.records[prefix][key] = entry.value; }
+  }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `training-coach-backup-${new Date().toISOString().slice(0, 10)}.json`; link.click(); URL.revokeObjectURL(link.href);
+  document.getElementById("backupStatus").textContent = "Backup exported.";
+}
+
+async function importTrainingData() {
+  const file = document.getElementById("trainingBackupFile").files[0];
+  const status = document.getElementById("backupStatus");
+  if (!file) return;
+  try {
+    const parsed = JSON.parse(await file.text());
+    if (!parsed.records) throw new Error("This is not a Training Coach backup.");
+    let count = 0;
+    for (const values of Object.values(parsed.records)) for (const [key, value] of Object.entries(values)) { await window.storage.set(key, value, false); count++; }
+    status.textContent = `Imported ${count} saved records. Refreshing views…`;
+    await Promise.all([loadCustomWorkouts(), renderGoals(), renderCalendar(), renderOverview()]);
+  } catch (e) { status.textContent = `Import failed: ${e.message}`; }
 }
 
 function openTodayReport() {
@@ -1094,6 +1217,27 @@ async function renderWeeklyReport() {
         y: { ticks: { display: false }, grid: { color: CHART_GRID }, max: 1 }
       }
     }
+  });
+  const volumeLabels = weeks.slice(Math.max(0, wi - 5), wi + 1).map(item => item.label.replace("Week ", "W"));
+  const volumeMinutes = [];
+  const volumeLoad = [];
+  for (let i = Math.max(0, wi - 5); i <= wi; i++) {
+    const weekOutcomes = await Promise.all(weeks[i].days.map((_, di) => getDayOutcome(i, di, doneMap)));
+    volumeMinutes.push(weekOutcomes.reduce((sum, o) => sum + (o.completed ? o.minutes : 0), 0));
+    volumeLoad.push(await computeWeekLoad(i));
+  }
+  destroyChart("weeklyVolumeChart");
+  charts.weeklyVolumeChart = new Chart(document.getElementById("weeklyVolumeChart"), {
+    type: "line",
+    data: { labels: volumeLabels, datasets: [
+      { label: "Minutes", data: volumeMinutes, borderColor: "#862C4D", backgroundColor: "rgba(134,44,77,0.12)", fill: true, tension: 0.3 },
+      { label: "Load points", data: volumeLoad, borderColor: "#507555", backgroundColor: "transparent", tension: 0.3, yAxisID: "load" }
+    ] },
+    options: { plugins: { legend: { labels: { color: CHART_TEXT } } }, scales: {
+      x: { ticks: { color: CHART_TEXT }, grid: { display: false } },
+      y: { ticks: { color: CHART_TEXT }, grid: { color: CHART_GRID }, title: { display: true, text: "minutes", color: CHART_TEXT } },
+      load: { position: "right", ticks: { color: "#507555" }, grid: { display: false }, title: { display: true, text: "load", color: "#507555" } }
+    } }
   });
 }
 
@@ -1308,6 +1452,8 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
     btn.classList.add("active");
     document.getElementById(btn.dataset.panel).classList.add("active");
     if (btn.dataset.panel === "reports") renderDailyReport();
+    if (btn.dataset.panel === "goals") renderGoals();
+    if (btn.dataset.panel === "calendar") renderCalendar();
     if (btn.dataset.panel === "physiology") { renderPhysiologyTab(); renderImportedMiFitness(); }
     if (btn.dataset.panel === "journal") renderJournalEntries();
     if (btn.dataset.panel === "nutrition") { renderFoodLog(); loadNutritionProfile(); }
@@ -1387,3 +1533,5 @@ loadNutritionProfile();
 renderFoodLog();
 renderOverview();
 populateWeekSelect();
+renderGoals();
+renderCalendar();

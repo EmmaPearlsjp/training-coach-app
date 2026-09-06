@@ -68,6 +68,8 @@
 
   <nav class="tabs">
     <button class="tab-btn active" data-panel="plan">12-week plan</button>
+    <button class="tab-btn" data-panel="goals">Goals</button>
+    <button class="tab-btn" data-panel="calendar">Calendar</button>
     <button class="tab-btn" data-panel="strength">Legs &amp; Core / Upper Body</button>
     <button class="tab-btn" data-panel="log">My log</button>
     <button class="tab-btn" data-panel="reports">Reports</button>
@@ -91,6 +93,7 @@
       <div class="progress-label"><span>Running kilometres</span><strong id="overviewKmLabel"></strong></div>
       <div class="overview-progress km-progress"><span id="overviewKmProgressBar"></span></div>
       <div class="activity-hours" id="activityHours"></div>
+      <div class="today-brief" id="todayBrief"></div>
       <p class="overview-message" id="overviewMessage"></p>
     </section>
     <div class="legend">
@@ -109,6 +112,42 @@
     </div>
     <div id="weeksContainer"></div>
     <p class="note">Use <strong>Log what I did</strong> to replace a planned session, add multiple activities on the same day, or mark the day as rest/recovery. Reports use those actual entries when adapting completion and training load.</p>
+  </section>
+
+  <section class="panel" id="goals">
+    <div class="section-intro">
+      <p class="kicker">Direction</p>
+      <h2>Objectives that guide the plan</h2>
+      <p class="sub">Set a target once, then use the dashboard to see whether your current pace is enough to reach it.</p>
+    </div>
+    <div class="log-card">
+      <h3>Add an objective</h3>
+      <div class="goal-form-grid">
+        <input type="text" id="goalName" placeholder="e.g. Run 10 km continuously">
+        <select id="goalMetric"><option value="distance">Running distance (km)</option><option value="sessions">Completed sessions</option><option value="minutes">Training minutes</option><option value="longest">Longest run (km)</option></select>
+        <input type="number" id="goalTarget" min="0.1" step="0.1" placeholder="Target">
+        <input type="date" id="goalDeadline" aria-label="Goal deadline">
+      </div>
+      <button class="action" onclick="saveGoal()">Add objective</button>
+    </div>
+    <div id="goalsList"></div>
+    <div class="log-card data-tools">
+      <h3>Data control</h3>
+      <p class="empty-note">Keep a copy before changing device or browser. Export includes goals, workouts, notes, journal entries, food, and plan outcomes.</p>
+      <div class="button-row"><button class="action" onclick="exportTrainingData()">Export backup</button><label class="file-button action secondary-action">Import backup<input type="file" id="trainingBackupFile" accept=".json,application/json" onchange="importTrainingData()"></label></div>
+      <p id="backupStatus" class="empty-note"></p>
+    </div>
+  </section>
+
+  <section class="panel" id="calendar">
+    <div class="section-intro">
+      <p class="kicker">Timeline</p>
+      <h2>Plan versus reality</h2>
+      <p class="sub">Every day combines the planned session with what you logged, including multiple activities and recovery days.</p>
+    </div>
+    <div class="calendar-toolbar"><button class="action secondary-action" onclick="shiftCalendar(-1)">← Previous</button><strong id="calendarTitle"></strong><button class="action secondary-action" onclick="shiftCalendar(1)">Next →</button></div>
+    <div class="calendar-grid" id="calendarGrid"></div>
+    <div class="timeline-list" id="timelineList"></div>
   </section>
 
   <section class="panel" id="strength">
@@ -157,6 +196,12 @@
         </select>
         <input type="number" id="customWorkoutMinutes" min="1" placeholder="Minutes" aria-label="Duration in minutes">
         <input type="number" id="customWorkoutDistance" min="0" step="0.1" placeholder="Distance km" aria-label="Distance in kilometres">
+      </div>
+      <div class="advanced-fields">
+        <input type="number" id="customWorkoutEffort" min="1" max="10" placeholder="Effort 1–10">
+        <input type="number" id="customWorkoutHeartRate" min="30" max="240" placeholder="Avg HR">
+        <input type="number" id="customWorkoutEnergy" min="1" max="10" placeholder="Energy 1–10">
+        <input type="text" id="customWorkoutPain" placeholder="Pain or discomfort (optional)">
       </div>
       <textarea id="customWorkoutNotes" placeholder="How did it feel? Optional notes"></textarea>
       <div class="media-input-grid">
@@ -210,6 +255,10 @@
       <div class="chart-card">
         <h4>Sessions completed this week</h4>
         <canvas id="weeklyCompletionChart"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Training volume and load trend</h4>
+        <canvas id="weeklyVolumeChart"></canvas>
       </div>
     </div>
 
@@ -402,7 +451,7 @@
     }
   });
 </script>
-<script src="storage-adapter.js?v=activity-totals-2"></script>
-<script src="app.js?v=activity-totals-2"></script>
+<script src="storage-adapter.js?v=professional-dashboard-1"></script>
+<script src="app.js?v=professional-dashboard-1"></script>
 </body>
 </html>
