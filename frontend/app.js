@@ -2157,6 +2157,138 @@ async function renderMonthlyReport() {
   });
 }
 
+function reportDateRange() {
+  const mode = document.getElementById("downloadReportRange")?.value || "week";
+  const today = new Date();
+  let start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  let end = new Date(start);
+  if (mode === "week") {
+    start.setDate(start.getDate() - start.getDay());
+    end = new Date(start);
+    end.setDate(end.getDate() + 6);
+  } else if (mode === "month") {
+    start = new Date(today.getFullYear(), today.getMonth(), 1);
+    end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  } else {
+    const startValue = document.getElementById("downloadReportStart")?.value;
+    const endValue = document.getElementById("downloadReportEnd")?.value;
+    if (startValue) start = new Date(`${startValue}T00:00:00`);
+    if (endValue) end = new Date(`${endValue}T00:00:00`);
+  }
+  const iso = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  return { start: iso(start), end: iso(end) };
+}
+
+function reportActivityType(activity) {
+  const value = String(activity.label || activity.type || "Other").toLowerCase();
+  if (value.includes("run") || value.includes("jog")) return "Run";
+  if (value.includes("walk")) return "Walk";
+  if (value.includes("badminton")) return "Badminton";
+  if (value.includes("strength") || value.includes("core") || value.includes("gym")) return "Strength";
+  if (value.includes("hike")) return "Hiking";
+  if (value.includes("yoga") || value.includes("stretch")) return "Yoga";
+  return activity.label || activity.type || "Other";
+}
+
+async function collectTrainingReport() {
+  const { start, end } = reportDateRange();
+  const inRange = date => String(date || "") >= start && String(date || "") <= end;
+  const custom = (await getCustomWorkouts()).filter(workout => inRange(workout.date));
+  const imported = (await getImportedMiFitness()).filter(activity => inRange(activity.date));
+  const doneMap = await getDoneMap();
+  const plannedRows = [];
+  weeks.forEach((week, wi) => week.days.forEach((day, di) => {
+    const date = dateForDay(wi, di);
+    if (inRange(date) && day.type !== "rest") plannedRows.push({ date, week: week.label, day: day.day, planned: day.detail, completed: Boolean(doneMap[wi]?.[di]) });
+  }));
+  const workouts = [
+    ...custom.map(workout => ({
+      date: workout.date, type: workout.type, source: "Manual", duration: Number(workout.minutes) || 0,
+      distance: Number(workout.distance) || 0, pace: workout.distance && workout.minutes ? Number(workout.minutes) / Number(workout.distance) : null,
+      avgHr: Number(workout.heartRate) || null, maxHr: null, breathing: null, calories: null, cadence: null, elevation: null,
+      notes: workout.notes || workout.pain || ""
+    })),
+    ...imported.map(activity => ({
+      date: activity.date, type: reportActivityType(activity), source: activity.source || "Mi Fitness",
+      duration: Number(activity.duration) || 0, distance: Number(activity.distance_km) || 0,
+      pace: Number(activity.pace_min_per_km) || (activity.distance_km && activity.duration ? activity.duration / activity.distance_km : null),
+      avgHr: Number(activity.avg_hr) || null, maxHr: Number(activity.max_hr) || null,
+      breathing: Number(activity.breathing_rate) || null, calories: Number(activity.calories) || null,
+      cadence: Number(activity.cadence) || null,
+      elevation: activity.route?.elevation?.length ? Math.max(...activity.route.elevation) - Math.min(...activity.route.elevation) : null,
+      notes: activity.association ? `Linked to ${activity.association.targetLabel}` : ""
+    }))
+  ].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const minutesByType = workouts.reduce((totals, workout) => {
+    totals[workout.type] = (totals[workout.type] || 0) + workout.duration;
+    return totals;
+  }, {});
+  const goals = await getGoals();
+  const goalProgress = await Promise.all(goals.map(async goal => ({ ...goal, progress: await getGoalProgress(goal) })));
+  const journals = (await getJournalEntries()).filter(entry => inRange(entry.date));
+  return { start, end, plannedRows, workouts, minutesByType, goalProgress, journals };
+}
+
+function reportCell(value) {
+  return String(value ?? "").replace(/"/g, '""');
+}
+
+async function downloadTrainingReportCsv() {
+  const status = document.getElementById("downloadReportStatus");
+  try {
+    const report = await collectTrainingReport();
+    const rows = [
+      ["Training report", `${report.start} to ${report.end}`],
+      [],
+      ["Planned sessions", report.plannedRows.length],
+      ["Completed planned sessions", report.plannedRows.filter(row => row.completed).length],
+      ["Running distance (km)", report.workouts.filter(row => row.type === "Run").reduce((sum, row) => sum + row.distance, 0).toFixed(2)],
+      [],
+      ["Date", "Type", "Source", "Duration (min)", "Distance (km)", "Pace (min/km)", "Avg HR", "Max HR", "Breathing/min", "Calories", "Cadence", "Elevation range (m)", "Notes"],
+      ...report.workouts.map(row => [row.date, row.type, row.source, row.duration || "", row.distance || "", row.pace?.toFixed(2) || "", row.avgHr || "", row.maxHr || "", row.breathing || "", row.calories || "", row.cadence || "", row.elevation?.toFixed(0) || "", row.notes]),
+      [],
+      ["Activity minutes by type"],
+      ...Object.entries(report.minutesByType).map(([type, minutes]) => [type, minutes.toFixed(1)]),
+      [],
+      ["Goals and progress"],
+      ...report.goalProgress.map(goal => [goal.name, goal.metric, goal.progress, goal.target, goal.deadline || ""]),
+      [],
+      ["Notes"],
+      ...report.journals.map(entry => [entry.date, entry.title, entry.body])
+    ];
+    const csv = rows.map(row => row.map(value => `"${reportCell(value)}"`).join(",")).join("\r\n");
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    link.download = `training-report-${report.start}-to-${report.end}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    status.textContent = `CSV report downloaded for ${report.start} to ${report.end}.`;
+  } catch (error) {
+    status.textContent = `Could not create report: ${error.message}`;
+  }
+}
+
+function reportHtml(report) {
+  const completed = report.plannedRows.filter(row => row.completed).length;
+  const totalDistance = report.workouts.reduce((sum, row) => sum + row.distance, 0);
+  const workoutRows = report.workouts.map(row => `<tr><td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.type)}</td><td>${escapeHtml(row.source)}</td><td>${row.duration.toFixed(1)}</td><td>${row.distance.toFixed(2)}</td><td>${row.pace ? row.pace.toFixed(2) : "Ã¢â‚¬â€"}</td><td>${row.avgHr || "Ã¢â‚¬â€"}${row.maxHr ? ` / ${row.maxHr}` : ""}</td><td>${row.breathing || "Ã¢â‚¬â€"}</td><td>${row.calories || "Ã¢â‚¬â€"}</td><td>${row.cadence || "Ã¢â‚¬â€"}</td><td>${row.elevation ? row.elevation.toFixed(0) : "Ã¢â‚¬â€"}</td><td>${escapeHtml(row.notes)}</td></tr>`).join("");
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Training report ${report.start} to ${report.end}</title><style>body{font:14px Arial;color:#302733;max-width:1100px;margin:30px auto}h1{font-size:24px}table{border-collapse:collapse;width:100%;margin:14px 0;font-size:11px}th,td{border:1px solid #ccc;padding:5px;text-align:left}th{background:#f1e6dc}.summary{display:flex;gap:20px;flex-wrap:wrap}.summary strong{display:block;font-size:20px}@media print{body{margin:10mm}button{display:none}}</style></head><body><h1>Training report</h1><p>${report.start} to ${report.end}</p><div class="summary"><div><strong>${completed}/${report.plannedRows.length}</strong> planned sessions completed</div><div><strong>${totalDistance.toFixed(2)} km</strong> total distance</div><div><strong>${report.workouts.reduce((sum, row) => sum + row.duration, 0).toFixed(1)} min</strong> activity time</div></div><h2>Workouts</h2><table><thead><tr><th>Date</th><th>Type</th><th>Source</th><th>Min</th><th>Km</th><th>Pace</th><th>HR avg/max</th><th>Breathing</th><th>Calories</th><th>Cadence</th><th>Elevation</th><th>Notes</th></tr></thead><tbody>${workoutRows || "<tr><td colspan='12'>No workouts in this range.</td></tr>"}</tbody></table><h2>Activity minutes by type</h2><p>${Object.entries(report.minutesByType).map(([type, minutes]) => `${escapeHtml(type)}: ${minutes.toFixed(1)} min`).join(" Â· ") || "No activity minutes."}</p><h2>Goals</h2><ul>${report.goalProgress.map(goal => `<li>${escapeHtml(goal.name)}: ${goal.progress} / ${goal.target} ${escapeHtml(goal.metric)}${goal.deadline ? ` Â· target ${escapeHtml(goal.deadline)}` : ""}</li>`).join("") || "<li>No goals saved.</li>"}</ul><h2>Notes</h2>${report.journals.map(entry => `<p><strong>${escapeHtml(entry.date)} Â· ${escapeHtml(entry.title)}</strong><br>${escapeHtml(entry.body).replace(/\n/g, "<br>")}</p>`).join("") || "<p>No notes in this range.</p>"}<button onclick="window.print()">Print / save PDF</button></body></html>`;
+}
+
+async function printTrainingReport() {
+  const status = document.getElementById("downloadReportStatus");
+  try {
+    const report = await collectTrainingReport();
+    const preview = window.open("", "_blank");
+    if (!preview) throw new Error("Allow pop-ups to print the report.");
+    preview.document.write(reportHtml(report));
+    preview.document.close();
+    status.textContent = `Printable report opened for ${report.start} to ${report.end}.`;
+  } catch (error) {
+    status.textContent = `Could not create report: ${error.message}`;
+  }
+}
+
 document.querySelectorAll(".sub-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".sub-btn").forEach(b => b.classList.remove("active"));

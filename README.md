@@ -106,6 +106,14 @@ Selecting one opens its source, association, metrics, and a private SVG route
 preview when GPS points are available; files without GPS data show a clear
 no-route state.
 
+The Reports tab can generate a client-side weekly, monthly, or custom
+date-range report. **Download CSV** produces a portable table of workouts,
+planned versus completed sessions, distances, activity minutes, available
+pace/heart-rate/breathing/elevation metrics, goals, and notes. **Print / save
+PDF** opens a print-friendly report; choose “Save as PDF” in the browser
+print dialog. This is separate from the full JSON backup, which remains the
+recommended restore format.
+
 ## Deploying
 
 **Frontend (GitHub Pages):** GitHub Pages only serves static files, which is all

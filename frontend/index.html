@@ -281,6 +281,23 @@
       <button class="sub-btn" data-view="weekly">Weekly</button>
       <button class="sub-btn" data-view="monthly">Monthly</button>
     </div>
+    <div class="log-card report-download-card">
+      <h3>Download training report</h3>
+      <div class="report-range-row">
+        <select id="downloadReportRange" aria-label="Report date range">
+          <option value="week">This week</option>
+          <option value="month">This month</option>
+          <option value="custom">Custom range</option>
+        </select>
+        <input type="date" id="downloadReportStart" aria-label="Report start date">
+        <input type="date" id="downloadReportEnd" aria-label="Report end date">
+      </div>
+      <div class="button-row">
+        <button class="action" onclick="downloadTrainingReportCsv()">Download CSV</button>
+        <button class="action secondary-action" onclick="printTrainingReport()">Print / save PDF</button>
+      </div>
+      <p id="downloadReportStatus" class="empty-note">Reports include workouts, plan completion, metrics, goals, and notes. Data stays in this browser or your configured backend.</p>
+    </div>
 
     <div class="report-view active" id="view-daily">
       <div class="today-card" id="todayCard"></div>
@@ -553,7 +570,7 @@
     }
   });
 </script>
-<script src="storage-adapter.js?v=reliability-pass-7"></script>
-<script src="app.js?v=reliability-pass-7"></script>
+<script src="storage-adapter.js?v=reliability-pass-8"></script>
+<script src="app.js?v=reliability-pass-8"></script>
 </body>
 </html>
