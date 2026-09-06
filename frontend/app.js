@@ -1622,10 +1622,45 @@ async function renderCalendar() {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const custom = await getCustomWorkouts();
   const imported = await getImportedMiFitness();
-  const keys = new Set([...custom.map(w => w.date), ...imported.map(w => w.date)]);
+  window.importedMiFitnessActivities = imported;
+  const keys = new Set([...custom.map(w => w.date), ...imported.map(w => w.date).filter(Boolean)]);
   grid.innerHTML = DAY_LABELS.map(d => `<div class="calendar-weekday">${d}</div>`).join("") + Array.from({ length: firstDay }, () => '<div class="calendar-day empty"></div>').join("") + Array.from({ length: daysInMonth }, (_, i) => { const key = calendarDateKey(year, month, i + 1); return `<button class="calendar-day ${keys.has(key) ? "has-data" : ""}" onclick="showCalendarDay('${key}')"><strong>${i + 1}</strong>${keys.has(key) ? "<span>●</span>" : ""}</button>`; }).join("");
-  const monthItems = [...custom, ...imported].filter(w => String(w.date || "").startsWith(`${year}-${String(month + 1).padStart(2, "0")}`)).sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  listEl.innerHTML = monthItems.length ? monthItems.map(w => `<div class="timeline-item"><strong>${escapeHtml(w.date)}</strong><span>${escapeHtml(w.type || w.label || "Activity")} · ${w.minutes || w.duration || 0} min${w.distance || w.distance_km ? ` · ${w.distance || w.distance_km} km` : ""}</span></div>`).join("") : '<p class="empty-note">No logged activities this month.</p>';
+  const monthItems = [...custom.map(workout => ({ ...workout, calendarKind: "manual" })), ...imported.map(workout => ({ ...workout, calendarKind: "imported" }))]
+    .filter(w => String(w.date || "").startsWith(`${year}-${String(month + 1).padStart(2, "0")}`))
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  listEl.innerHTML = monthItems.length ? monthItems.map(w => w.calendarKind === "imported"
+    ? `<button class="timeline-item imported" data-imported-calendar-id="${escapeHtml(w.activity_id || w.storageKey)}"><strong>${escapeHtml(w.date)}</strong><span>${escapeHtml(w.label || "Mi Fitness activity")} · ${w.duration ? `${Number(w.duration).toFixed(1)} min` : "duration unavailable"}${w.distance_km ? ` · ${Number(w.distance_km).toFixed(2)} km` : ""} · <span class="source-tag">${escapeHtml(w.source || "Imported")}</span></span></button>`
+    : `<div class="timeline-item"><strong>${escapeHtml(w.date)}</strong><span>${escapeHtml(w.type || "Activity")} · ${w.minutes || 0} min${w.distance ? ` · ${w.distance} km` : ""}</span></div>`
+  ).join("") : '<p class="empty-note">No logged activities this month.</p>';
+  listEl.querySelectorAll("[data-imported-calendar-id]").forEach(button => button.addEventListener("click", () => {
+    showImportedCalendarActivity(button.dataset.importedCalendarId);
+  }));
+}
+
+function routePreviewSvg(route) {
+  const points = route?.path || [];
+  if (points.length < 2) return "";
+  const minLat = Math.min(...points.map(point => point.lat));
+  const maxLat = Math.max(...points.map(point => point.lat));
+  const minLon = Math.min(...points.map(point => point.lon));
+  const maxLon = Math.max(...points.map(point => point.lon));
+  const latSpan = maxLat - minLat || 0.001;
+  const lonSpan = maxLon - minLon || 0.001;
+  const project = point => `${8 + ((point.lon - minLon) / lonSpan) * 484},${165 - ((point.lat - minLat) / latSpan) * 150}`;
+  return `<div class="calendar-route-preview"><svg viewBox="0 0 500 175" preserveAspectRatio="xMidYMid meet"><path d="M ${points.map(project).join(" L ")}"></path></svg></div>`;
+}
+
+function showImportedCalendarActivity(activityId) {
+  const activity = (window.importedMiFitnessActivities || []).find(item => (item.activity_id || item.storageKey) === activityId);
+  const details = document.getElementById("calendarActivityDetails");
+  if (!activity || !details) return;
+  const association = activity.association ? `${activity.association.targetLabel} (${activity.association.targetKind})` : "Not linked yet";
+  details.hidden = false;
+  details.innerHTML = `<h3>${escapeHtml(activity.date || "Date unavailable")} · ${escapeHtml(activity.label || "Imported activity")}</h3>
+    <p class="metric-line"><strong>Source:</strong> ${escapeHtml(activity.source || "Imported file")} · <strong>Association:</strong> ${escapeHtml(association)}</p>
+    <p class="metric-line"><strong>Metrics:</strong> ${activity.duration ? `${Number(activity.duration).toFixed(1)} min` : "duration unavailable"}${activity.distance_km ? ` · ${Number(activity.distance_km).toFixed(2)} km` : ""}${activity.pace_min_per_km ? ` · ${Number(activity.pace_min_per_km).toFixed(2)} min/km` : ""}${activity.avg_hr ? ` · avg HR ${activity.avg_hr}` : ""}${activity.max_hr ? ` · max HR ${activity.max_hr}` : ""}${activity.breathing_rate ? ` · ${activity.breathing_rate} breaths/min` : ""}${activity.calories ? ` · ${activity.calories} kcal` : ""}${activity.cadence ? ` · ${activity.cadence} spm` : ""}</p>
+    <p class="metric-line"><strong>Route:</strong> ${activity.route?.points ? `${activity.route.points} GPS points` : "No GPS route in this file."}</p>${routePreviewSvg(activity.route)}`;
+  details.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 function shiftCalendar(amount) { calendarCursor.setMonth(calendarCursor.getMonth() + amount); renderCalendar(); }

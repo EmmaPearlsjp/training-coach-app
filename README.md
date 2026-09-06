@@ -89,6 +89,11 @@ respiratory data when present, cadence, calories, elevation, pace, and route)
 are attached to that existing record while its original notes and fields stay
 intact. Missing breathing data is treated as unavailable, not as zero.
 
+The Calendar view includes dated imported activities as clickable entries.
+Selecting one opens its source, association, metrics, and a private SVG route
+preview when GPS points are available; files without GPS data show a clear
+no-route state.
+
 ## Deploying
 
 **Frontend (GitHub Pages):** GitHub Pages only serves static files, which is all
