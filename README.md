@@ -67,6 +67,20 @@ or GitHub Pages domains. Before imports and delete actions, the app also keeps
 one automatic safety snapshot in the current browser; use **Export backup** for
 a portable copy.
 
+The Physiology tab also accepts TCX, GPX, and KML activity files. These are
+parsed client-side, so route data and health metrics stay in the current
+browser. The importer keeps date, activity type, duration, distance, pace,
+heart rate, calories, cadence, and route-point metadata when present, reports
+unavailable fields, and skips the same file/activity again using stable IDs.
+JSON Mi Fitness import remains available as a separate action.
+
+When GPS points are available, the same panel shows a private, client-side SVG
+route view. Select one or more colored tracks with the checkboxes, filter by
+activity type or date, and compare selected distance, duration, pace, and
+elevation range. Files without GPS points still import their summary metrics
+and show a clear no-route state; no map tiles or location data are sent to an
+external service.
+
 ## Deploying
 
 **Frontend (GitHub Pages):** GitHub Pages only serves static files, which is all
