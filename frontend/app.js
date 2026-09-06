@@ -640,16 +640,20 @@ async function getActualActivityTotals() {
     totals[type].minutes += Number(workout.duration) || 0;
     totals[type].distance = (totals[type].distance || 0) + (Number(workout.distance_km) || 0);
   });
-  for (let wi = 0; wi < weeks.length; wi++) {
-    for (let di = 0; di < weeks[wi].days.length; di++) {
-      const outcome = await getDayOutcome(wi, di);
-      outcome.activities.forEach(activity => {
+  try {
+    const list = await window.storage.list("plan-override:", false);
+    const overrides = await Promise.all((list.keys || []).map(key => window.storage.get(key, false)));
+    overrides.filter(Boolean).forEach(entry => {
+      const override = JSON.parse(entry.value);
+      overrideActivities(override).forEach(activity => {
         const type = activity.type === "easy" || RUN_TYPES.includes(activity.type) ? "Run" : activity.type === "legscore" || activity.type === "upperbody" ? "Strength" : ACTIVITY_LABELS[activity.type] || "Other";
         if (!totals[type]) totals[type] = { minutes: 0 };
         totals[type].minutes += Number(activity.minutes) || 0;
         totals[type].distance = (totals[type].distance || 0) + (Number(activity.distance) || 0);
       });
-    }
+    });
+  } catch (e) {
+    console.error(e);
   }
   return totals;
 }
