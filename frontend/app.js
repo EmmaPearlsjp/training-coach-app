@@ -1521,17 +1521,20 @@ renderActualDataForAllWeeks();
 document.getElementById("wb-0").classList.add("open");
 document.getElementById("customWorkoutDate").value = new Date().toISOString().slice(0, 10);
 document.getElementById("journalDate").value = new Date().toISOString().slice(0, 10);
-loadActivities();
-loadDone();
-loadFeel();
-loadWeightHistory();
-loadMealHistory();
-loadCustomWorkouts();
-renderImportedMiFitness();
-renderJournalEntries();
-loadNutritionProfile();
-renderFoodLog();
-renderOverview();
+Promise.all([
+  loadActivities(),
+  loadDone(),
+  loadFeel(),
+  loadWeightHistory(),
+  loadMealHistory(),
+  loadCustomWorkouts(),
+  renderImportedMiFitness(),
+  renderJournalEntries(),
+  loadNutritionProfile(),
+  renderFoodLog()
+]).then(() => Promise.all([
+  renderOverview(),
+  renderGoals(),
+  renderCalendar()
+])).catch(error => console.error("Training Coach initialization failed", error));
 populateWeekSelect();
-renderGoals();
-renderCalendar();
