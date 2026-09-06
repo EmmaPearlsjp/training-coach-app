@@ -162,6 +162,7 @@
         <li>2 sets: Standing Side Bend, Plank</li>
       </ul>
       <p class="tag-line">Reps are in the app — open Runna and press "Start Workout" for the exact count. Runna rotates a few different Legs & Core workouts through the plan; this is one of them.</p>
+      <button class="action" onclick="startGuidedSession('legs-core')">Start guided Legs &amp; Core session</button>
     </div>
     <div class="circuit-block">
       <h3>Upper Body — "Upper Body Lift"</h3>
@@ -174,6 +175,7 @@
         <li>3 sets: Hip Drop, Side Plank</li>
       </ul>
       <p class="tag-line">Same here — Runna rotates a few Upper Body workouts, so the app is the source of truth on any given week.</p>
+      <button class="action" onclick="startGuidedSession('upper-body')">Start guided Upper Body session</button>
     </div>
     <div class="circuit-block">
       <h3>Flexibility add-on (any day, 10–15 min)</h3>
@@ -183,6 +185,22 @@
         <li>Cat–cow + child's pose — 5 rounds</li>
         <li>Shoulder &amp; chest opener — 60 sec</li>
       </ul>
+    </div>
+  </section>
+
+  <section class="panel" id="session" hidden>
+    <div class="session-shell">
+      <div class="session-head">
+        <div><p class="kicker">Training mode</p><h2 id="sessionTitle">Guided session</h2><p class="sub" id="sessionProgress"></p></div>
+        <button class="action secondary-action" onclick="closeGuidedSession()">Exit session</button>
+      </div>
+      <div class="session-clock-row">
+        <div class="session-clock"><strong id="sessionElapsed">00:00</strong><span>session time</span></div>
+        <div class="session-clock"><strong id="sessionCompleted">0/0</strong><span>sets completed</span></div>
+        <div class="session-clock rest-clock"><strong id="restTimer">00:00</strong><span>rest timer</span></div>
+      </div>
+      <div class="session-actions"><button class="action" onclick="startRestTimer(60)">Start 60s rest</button><button class="action secondary-action" onclick="startRestTimer(90)">Start 90s rest</button><button class="action secondary-action" onclick="stopRestTimer()">Stop timer</button></div>
+      <div id="sessionExerciseList"></div>
     </div>
   </section>
 
@@ -412,6 +430,16 @@
     <label class="rest-toggle"><input type="checkbox" id="editor-rest"> Mark this day as rest / recovery</label>
     <div class="editor-actions"><button class="action" onclick="saveActivityOverride(false)">Save actual activity</button><button class="action secondary-action" onclick="saveActivityOverride(true)">Save + add another</button></div>
   </div>
+
+  <div class="modal-backdrop" id="session-modal" hidden>
+    <div class="session-modal" role="dialog" aria-modal="true" aria-labelledby="session-modal-title">
+      <button class="modal-close" onclick="closeGuidedSession()" aria-label="Close">×</button>
+      <p class="kicker">Guided workout</p>
+      <h2 id="session-modal-title">Ready to train?</h2>
+      <p class="sub">Keep this screen open while you train. Tick each set as you finish it, then use the rest buttons between sets.</p>
+      <button class="action" onclick="openSessionPanel()">Start session</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -453,7 +481,7 @@
     }
   });
 </script>
-<script src="storage-adapter.js?v=workout-management-2"></script>
-<script src="app.js?v=workout-management-2"></script>
+<script src="storage-adapter.js?v=guided-strength-1"></script>
+<script src="app.js?v=guided-strength-1"></script>
 </body>
 </html>

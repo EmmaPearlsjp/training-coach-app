@@ -8,6 +8,49 @@ const RACE_DATE = new Date(2026, 10, 21); // Nov 21 2026
 let charts = {};
 let calendarCursor = new Date();
 calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1);
+let guidedSession = null;
+let sessionStartedAt = null;
+let sessionClockInterval = null;
+let restClockInterval = null;
+let restSecondsRemaining = 0;
+
+const GUIDED_SESSIONS = {
+  "legs-core": {
+    title: "Legs & Core — Loading Up",
+    equipment: "Dumbbell, exercise mat, stable bench or step",
+    exercises: [
+      ["Heel walks", 3, "30–45 sec", "Keep toes lifted and take short controlled steps.", "heel walks exercise"],
+      ["Diagonal toe tap", 3, "8–12 / side", "Brace your ribs down and move slowly from the hip.", "diagonal toe tap exercise"],
+      ["Side leg swings", 3, "10 / side", "Hold support, keep the pelvis level, and use a controlled range.", "side leg swings exercise"],
+      ["Bodyweight squat", 3, "8–12", "Keep the whole foot grounded and knees tracking over toes.", "bodyweight squat form"],
+      ["Single-leg hamstring hold", 3, "20–30 sec / side", "Hinge gently and keep the working heel heavy.", "single leg isometric hamstring hold"],
+      ["Hip drop", 3, "8–12 / side", "Move from the hip; avoid twisting the trunk.", "hip drop exercise glute medius"],
+      ["Single-leg glute bridge", 3, "8–12 / side", "Finish with the hip extended without arching your back.", "single leg glute bridge form"],
+      ["Bent-knee calf raise", 3, "12–15 / side", "Pause at the top and lower slowly.", "bent knee calf raise exercise"],
+      ["Walking lunge", 2, "8–10 / side", "Use a comfortable stride and keep your front knee stable.", "walking lunge form"],
+      ["Loaded walking calf raise", 2, "10–15", "Hold the dumbbell securely and rise smoothly.", "loaded walking calf raise"],
+      ["Standing side bend", 2, "10 / side", "Stay tall; make the side body work instead of collapsing.", "standing dumbbell side bend"],
+      ["Plank", 2, "20–45 sec", "Squeeze glutes, brace gently, and stop before your back sags.", "forearm plank proper form"]
+    ]
+  },
+  "upper-body": {
+    title: "Upper Body Lift",
+    equipment: "Dumbbell, bench, exercise mat",
+    exercises: [
+      ["Travelling press-up walk out", 3, "6–10", "Move as one unit and keep the shoulders away from the ears.", "traveling push up walkout"],
+      ["Mountain climber", 3, "20–30 sec", "Keep the hips steady and choose a pace you can control.", "mountain climber proper form"],
+      ["Press-up position walk out", 3, "6–10", "Brace your trunk before moving your hands.", "push up position walk out"],
+      ["Bear crawl", 3, "20–30 sec", "Keep knees low and take small opposite-hand steps.", "bear crawl exercise form"],
+      ["Dumbbell bench press", 2, "8–12", "Lower with control and keep wrists stacked over elbows.", "dumbbell bench press form"],
+      ["Lunge and press", 2, "8 / side", "Stand tall before pressing; use a manageable dumbbell.", "dumbbell lunge and press"],
+      ["Bent-over row", 2, "8–12 / side", "Keep your back long and pull the elbow toward your hip.", "one arm dumbbell row form"],
+      ["Dead bug", 2, "8 / side", "Keep your lower back gently connected to the mat.", "dead bug exercise proper form"],
+      ["Single-arm row", 2, "8–12 / side", "Avoid rotating; pause when the elbow reaches the ribs.", "single arm dumbbell row"],
+      ["Farmer's carry", 2, "30–45 sec", "Walk tall with quiet steps and shoulders level.", "dumbbell farmers carry form"],
+      ["Side plank", 3, "20–30 sec / side", "Lift from the waist and keep your head neutral.", "side plank proper form"]
+    ]
+  }
+};
 
 function renderCountdown() {
   const today = new Date();
@@ -1571,6 +1614,92 @@ async function loadMealHistory() {
       return `<div class="log-entry"><span>${d.date}</span><span class="val">${d.text}</span></div>`;
     }).join("");
   } catch (e) { el.innerHTML = '<p class="empty-note">No notes yet.</p>'; }
+}
+
+function startGuidedSession(sessionKey) {
+  guidedSession = GUIDED_SESSIONS[sessionKey];
+  if (!guidedSession) return;
+  document.getElementById("session-modal").hidden = false;
+  document.getElementById("session-modal-title").textContent = `Start ${guidedSession.title}?`;
+}
+
+function openSessionPanel() {
+  if (!guidedSession) return;
+  document.getElementById("session-modal").hidden = true;
+  document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active"));
+  document.querySelectorAll(".panel").forEach(panel => panel.classList.remove("active"));
+  const panel = document.getElementById("session");
+  panel.hidden = false;
+  panel.classList.add("active");
+  document.getElementById("sessionTitle").textContent = guidedSession.title;
+  document.getElementById("sessionProgress").textContent = `${guidedSession.equipment}. Follow the cues, use the video links as a visual reference, and stop if you feel sharp pain.`;
+  sessionStartedAt = Date.now();
+  clearInterval(sessionClockInterval);
+  sessionClockInterval = setInterval(updateSessionClock, 1000);
+  renderGuidedSession();
+  updateSessionClock();
+}
+
+function renderGuidedSession() {
+  const el = document.getElementById("sessionExerciseList");
+  el.innerHTML = guidedSession.exercises.map((exercise, index) => {
+    const [name, sets, reps, cue, search] = exercise;
+    return `<article class="exercise-card"><div class="exercise-card-head"><div><span class="exercise-number">${index + 1}</span><h3>${escapeHtml(name)}</h3><p>${sets} sets · ${escapeHtml(reps)}</p></div><a class="video-link" href="https://www.youtube.com/results?search_query=${encodeURIComponent(search)}" target="_blank" rel="noreferrer">Watch explanation</a></div><p class="exercise-cue"><strong>Form cue:</strong> ${escapeHtml(cue)}</p><div class="set-tracker">${Array.from({ length: sets }, (_, setIndex) => `<label class="set-check"><input type="checkbox" onchange="updateSessionProgress()"><span>Set ${setIndex + 1}</span></label>`).join("")}</div><button class="text-button" onclick="startRestTimer(${sets > 2 ? 60 : 90})">Rest ${sets > 2 ? 60 : 90}s</button></article>`;
+  }).join("");
+  updateSessionProgress();
+}
+
+function updateSessionClock() {
+  if (!sessionStartedAt) return;
+  const seconds = Math.floor((Date.now() - sessionStartedAt) / 1000);
+  document.getElementById("sessionElapsed").textContent = formatTimer(seconds);
+}
+
+function updateSessionProgress() {
+  const checks = [...document.querySelectorAll("#sessionExerciseList input[type=checkbox]")];
+  const completed = checks.filter(input => input.checked).length;
+  document.getElementById("sessionCompleted").textContent = `${completed}/${checks.length}`;
+  const totalExercises = guidedSession ? guidedSession.exercises.length : 0;
+  const current = checks.findIndex(input => !input.checked);
+  document.getElementById("sessionProgress").dataset.current = current >= 0 ? `Exercise ${Math.floor(current / 3) + 1} of ${totalExercises}` : "Session complete";
+}
+
+function formatTimer(seconds) {
+  const safe = Math.max(0, Number(seconds) || 0);
+  return `${String(Math.floor(safe / 60)).padStart(2, "0")}:${String(safe % 60).padStart(2, "0")}`;
+}
+
+function startRestTimer(seconds) {
+  clearInterval(restClockInterval);
+  restSecondsRemaining = seconds;
+  document.getElementById("restTimer").textContent = formatTimer(restSecondsRemaining);
+  restClockInterval = setInterval(() => {
+    restSecondsRemaining -= 1;
+    document.getElementById("restTimer").textContent = formatTimer(restSecondsRemaining);
+    if (restSecondsRemaining <= 0) {
+      clearInterval(restClockInterval);
+      document.getElementById("restTimer").textContent = "Ready";
+      if ("vibrate" in navigator) navigator.vibrate([150, 80, 150]);
+    }
+  }, 1000);
+}
+
+function stopRestTimer() {
+  clearInterval(restClockInterval);
+  restSecondsRemaining = 0;
+  document.getElementById("restTimer").textContent = "00:00";
+}
+
+function closeGuidedSession() {
+  clearInterval(sessionClockInterval);
+  clearInterval(restClockInterval);
+  sessionStartedAt = null;
+  stopRestTimer();
+  document.getElementById("session-modal").hidden = true;
+  document.getElementById("session").classList.remove("active");
+  document.getElementById("session").hidden = true;
+  const strengthTab = document.querySelector('[data-panel="strength"]');
+  if (strengthTab) strengthTab.click();
 }
 
 renderWeeks();
