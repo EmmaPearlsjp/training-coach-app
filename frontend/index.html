@@ -64,6 +64,23 @@
     <h1>10K training plan</h1>
     <p class="sub">11 weeks, starting this week. The low-volume intro week already passed, so this starts you straight into real training — with a weekly check-in that adjusts guidance based on what you actually complete.</p>
     <div class="countdown-row" id="countdownRow"></div>
+    <div class="quick-links" aria-label="Quick actions">
+      <button class="quick-link" onclick="openAppPanel('reports')">Today</button>
+      <button class="quick-link" onclick="openAppPanel('log')">Log activity</button>
+      <button class="quick-link" onclick="openAppPanel('physiology')">Physiology</button>
+      <button class="quick-link" onclick="openAppPanel('goals')">Backup data</button>
+    </div>
+    <aside class="data-safety-bar" aria-labelledby="data-safety-title">
+      <div>
+        <p class="kicker" id="data-safety-title">Data safety</p>
+        <p id="dataSafetySummary">Checking this browser and site…</p>
+        <p class="empty-note" id="dataSafetyWarning">Your data is tied to this browser and the current site/domain. Keep a downloaded backup before changing browsers, devices, or domains.</p>
+      </div>
+      <div class="data-safety-actions">
+        <button class="action secondary-action" onclick="exportTrainingData()">Export backup</button>
+        <label class="file-button action secondary-action">Import backup<input type="file" id="headerTrainingBackupFile" accept=".json,application/json" onchange="importTrainingData('headerTrainingBackupFile')"></label>
+      </div>
+    </aside>
   </header>
 
   <nav class="tabs">
@@ -494,7 +511,7 @@
     }
   });
 </script>
-<script src="storage-adapter.js?v=local-mi-fitness-1"></script>
-<script src="app.js?v=local-mi-fitness-1"></script>
+<script src="storage-adapter.js?v=reliability-pass-2"></script>
+<script src="app.js?v=reliability-pass-2"></script>
 </body>
 </html>

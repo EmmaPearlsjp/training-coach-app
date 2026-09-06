@@ -60,6 +60,13 @@ deployed backend, edit the inline `<script>` in `frontend/index.html`:
 </script>
 ```
 
+The dashboard header shows the active site/domain and whether storage is using
+the backend or this browser's local fallback. Browser storage is isolated by
+browser and domain, so export a JSON backup before changing devices, browsers,
+or GitHub Pages domains. Before imports and delete actions, the app also keeps
+one automatic safety snapshot in the current browser; use **Export backup** for
+a portable copy.
+
 ## Deploying
 
 **Frontend (GitHub Pages):** GitHub Pages only serves static files, which is all

@@ -15,6 +15,53 @@ let restClockInterval = null;
 let restSecondsRemaining = 0;
 let intervalClockInterval = null;
 let intervalState = null;
+const BACKUP_PREFIXES = ["custom-workout:", "plan-override:", "done:", "activities:", "swaps:", "feel:", "journal:", "food:", "weight:", "meal:", "goal:", "mi-fitness:"];
+
+async function collectTrainingData() {
+  const data = { exportedAt: new Date().toISOString(), version: 1, records: {} };
+  for (const prefix of BACKUP_PREFIXES) {
+    const list = await window.storage.list(prefix, false);
+    data.records[prefix] = {};
+    for (const key of (list.keys || [])) {
+      const entry = await window.storage.get(key, false);
+      if (entry) data.records[prefix][key] = entry.value;
+    }
+  }
+  return data;
+}
+
+async function createLocalSafetySnapshot(reason) {
+  try {
+    const data = await collectTrainingData();
+    localStorage.setItem("training-coach:safety:last", JSON.stringify({
+      ...data, reason, snapshotAt: new Date().toISOString()
+    }));
+    updateDataSafetyStatus("Snapshot saved before " + reason + ".");
+  } catch (error) {
+    console.error("Could not create local safety snapshot:", error);
+    updateDataSafetyStatus("Automatic snapshot could not be saved. Export a backup before continuing.");
+  }
+}
+
+function updateDataSafetyStatus(message) {
+  const summary = document.getElementById("dataSafetySummary");
+  if (!summary) return;
+  const status = window.storage?.getStatus?.() || { mode: "checking" };
+  const domain = window.location.hostname || "local file";
+  const mode = status.mode === "backend" ? "connected local backend" : status.mode === "browser" ? "this browser only" : "checking storage";
+  summary.textContent = `${domain} · ${mode}${message ? ` · ${message}` : ""}`;
+}
+
+function refreshDataSafetyStatus() {
+  updateDataSafetyStatus("");
+  setTimeout(() => updateDataSafetyStatus(""), 500);
+}
+
+function openAppPanel(panelName) {
+  const button = document.querySelector(`.tab-btn[data-panel="${panelName}"]`);
+  if (button) button.click();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
 
 const GUIDED_SESSIONS = {
   "abs-5": {
@@ -395,6 +442,7 @@ async function saveActivityOverride(addAnother) {
     image: document.getElementById("editor-image").value.trim()
   };
   const existing = await getActivityOverride(wi, di);
+  if (existing && !addAnother) await createLocalSafetySnapshot("replacing a planned activity");
   const activities = addAnother ? overrideActivities(existing).concat(activity) : [activity];
   const override = { activities, rest: document.getElementById("editor-rest").checked };
   await window.storage.set(`plan-override:${wi}:${di}`, JSON.stringify(override), false);
@@ -463,6 +511,7 @@ async function addActivity(wi) {
 }
 
 async function removeActivity(wi, id) {
+  await createLocalSafetySnapshot("deleting an extra activity");
   let list = await getActivities(wi);
   list = list.filter(a => a.id !== id);
   await saveActivities(wi, list);
@@ -810,6 +859,7 @@ async function editCustomWorkout(key) {
 
 async function deleteCustomWorkout(key) {
   if (!window.confirm("Delete this workout?")) return;
+  await createLocalSafetySnapshot("deleting a workout");
   await window.storage.delete(key, false);
   await loadCustomWorkouts();
   renderOverview();
@@ -837,6 +887,7 @@ async function importMiFitnessBackup() {
     const parsed = JSON.parse(await file.text());
     const source = Array.isArray(parsed) ? parsed : (parsed.workouts || parsed.activities || parsed.data || []);
     if (!Array.isArray(source) || source.length === 0) throw new Error("No workout array found");
+    await createLocalSafetySnapshot("importing Mi Fitness data");
     let imported = 0;
     for (const item of source) {
       const date = item.date || item.startTime || item.start_time || item.start;
@@ -877,6 +928,7 @@ async function syncLocalMiFitness() {
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.detail || payload.error || "Local bridge unavailable");
     const workouts = payload.workouts?.data?.workouts || payload.workouts?.workouts || [];
+    await createLocalSafetySnapshot("syncing local Mi Fitness data");
     let imported = 0;
     for (const item of workouts) {
       const workout = {
@@ -899,7 +951,7 @@ async function syncLocalMiFitness() {
     await renderImportedMiFitness();
     await renderOverview();
   } catch (error) {
-    status.textContent = `Local sync unavailable. Start the backend with npm start, then try again. (${error.message})`;
+    status.textContent = `Local Mi Fitness is unavailable. Your existing data is safe; use the JSON import above or start the backend with npm start. (${error.message})`;
   }
 }
 
@@ -1106,6 +1158,7 @@ async function saveGoal() {
 }
 
 async function deleteGoal(key) {
+  await createLocalSafetySnapshot("deleting a goal");
   await window.storage.delete(key, false);
   renderGoals();
 }
@@ -1167,25 +1220,21 @@ function showCalendarDay(date) {
 }
 
 async function exportTrainingData() {
-  const keys = ["custom-workout:", "plan-override:", "done:", "activities:", "swaps:", "feel:", "journal:", "food:", "weight:", "meal:", "goal:", "mi-fitness:"];
-  const data = { exportedAt: new Date().toISOString(), version: 1, records: {} };
-  for (const prefix of keys) {
-    const list = await window.storage.list(prefix, false);
-    data.records[prefix] = {};
-    for (const key of (list.keys || [])) { const entry = await window.storage.get(key, false); if (entry) data.records[prefix][key] = entry.value; }
-  }
+  const data = await collectTrainingData();
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `training-coach-backup-${new Date().toISOString().slice(0, 10)}.json`; link.click(); URL.revokeObjectURL(link.href);
   document.getElementById("backupStatus").textContent = "Backup exported.";
+  updateDataSafetyStatus("Portable backup downloaded.");
 }
 
-async function importTrainingData() {
-  const file = document.getElementById("trainingBackupFile").files[0];
+async function importTrainingData(fileInputId = "trainingBackupFile") {
+  const file = document.getElementById(fileInputId)?.files[0];
   const status = document.getElementById("backupStatus");
   if (!file) return;
   try {
     const parsed = JSON.parse(await file.text());
     if (!parsed.records) throw new Error("This is not a Training Coach backup.");
+    await createLocalSafetySnapshot("importing a training backup");
     let count = 0;
     for (const values of Object.values(parsed.records)) for (const [key, value] of Object.entries(values)) { await window.storage.set(key, value, false); count++; }
     status.textContent = `Imported ${count} saved records. Refreshing views…`;
@@ -1677,7 +1726,10 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
     if (btn.dataset.panel === "journal") renderJournalEntries();
     if (btn.dataset.panel === "nutrition") { renderFoodLog(); loadNutritionProfile(); }
   });
+
 });
+
+refreshDataSafetyStatus();
 
 async function logWeight() {
   const val = document.getElementById("weightInput").value;

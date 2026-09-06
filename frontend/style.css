@@ -30,6 +30,15 @@
   .sub { font-size: 13.5px; color: var(--ink-soft); max-width: 62ch; margin: 0 0 14px; }
 
   .countdown-row { display: flex; gap: 10px; }
+  .quick-links { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 12px; }
+  .quick-link { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 999px; padding: 7px 11px; font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+  .quick-link:hover { border-color: var(--accent); color: var(--accent); }
+  .data-safety-bar { display: flex; justify-content: space-between; gap: 14px; align-items: center; margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+  .data-safety-bar .kicker { margin-bottom: 2px; }
+  .data-safety-bar p { margin: 0; }
+  #dataSafetySummary { font-size: 12.5px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+  #dataSafetyWarning { margin-top: 4px; font-size: 11px; }
+  .data-safety-actions { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
   .countdown-box { background: var(--ink); color: var(--white); border-radius: 8px; padding: 12px 16px; }
   .countdown-box .num { font-size: 26px; font-weight: 800; line-height: 1; }
   .countdown-box .lbl { font-size: 10.5px; color: #B8BCC4; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
@@ -229,6 +238,15 @@
   .button-row { display: flex; gap: 8px; flex-wrap: wrap; }
   .file-button { display: inline-flex; align-items: center; }
   .file-button input { display: none; }
+  @media (max-width: 560px) {
+    .data-safety-bar { align-items: stretch; flex-direction: column; }
+    .data-safety-actions { justify-content: flex-start; }
+    .data-safety-actions .action { flex: 1; text-align: center; }
+    .quick-link { flex: 1; text-align: center; }
+    .overview-heading { flex-direction: column; }
+    .overview-heading .action { width: 100%; }
+    .button-row .action, .button-row .file-button { flex: 1; justify-content: center; text-align: center; }
+  }
   .calendar-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
   .calendar-toolbar .action { padding: 7px 10px; }
   .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
