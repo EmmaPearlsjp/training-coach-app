@@ -1060,22 +1060,22 @@ function routeColor(index) {
   return ["#862C4D", "#507555", "#B25074", "#817F3E", "#E18079", "#503447"][index % 6];
 }
 
-function routeFiltersMatch(activity) {
-  const type = document.getElementById("routeTypeFilter")?.value || "";
-  const date = document.getElementById("routeDateFilter")?.value || "";
+function routeFiltersMatch(activity, prefix = "") {
+  const type = document.getElementById(prefix ? `${prefix}RouteTypeFilter` : "routeTypeFilter")?.value || "";
+  const date = document.getElementById(prefix ? `${prefix}RouteDateFilter` : "routeDateFilter")?.value || "";
   return (!type || activity.label === type) && (!date || activity.date === date);
 }
 
-function renderRouteMap() {
-  const panel = document.getElementById("miFitnessRoutes");
-  const checklist = document.getElementById("routeChecklist");
-  const map = document.getElementById("routeMap");
-  const analysis = document.getElementById("routeAnalysis");
+function renderRouteMap(prefix = "") {
+  const panel = document.getElementById(prefix ? `${prefix}RouteView` : "miFitnessRoutes");
+  const checklist = document.getElementById(prefix ? `${prefix}RouteChecklist` : "routeChecklist");
+  const map = document.getElementById(prefix ? `${prefix}RouteMap` : "routeMap");
+  const analysis = document.getElementById(prefix ? `${prefix}RouteAnalysis` : "routeAnalysis");
   if (!panel || !checklist || !map || !analysis) return;
   const routes = window.importedMiFitnessRoutes || [];
   const imported = window.importedMiFitnessActivities || [];
-  const filtered = routes.filter(routeFiltersMatch);
-  panel.hidden = imported.length === 0;
+  const filtered = routes.filter(route => routeFiltersMatch(route, prefix));
+  if (!prefix) panel.hidden = imported.length === 0;
   if (!routes.length) {
     checklist.innerHTML = '<p class="empty-note">No imported activity contains GPS route points yet.</p>';
     map.innerHTML = '<p class="empty-note">No GPS data available for an interactive route preview.</p>';
@@ -1090,7 +1090,7 @@ function renderRouteMap() {
   ).join("") : '<p class="empty-note">No routes match these filters.</p>';
   checklist.querySelectorAll("input[data-route-id]").forEach(input => input.addEventListener("change", () => {
     if (input.checked) selectedRouteIds.add(input.dataset.routeId); else selectedRouteIds.delete(input.dataset.routeId);
-    renderRouteMap();
+    renderRouteMap(prefix);
   }));
   const selected = filtered.filter(route => selectedRouteIds.has(route.activity_id) && route.route?.path?.length > 1);
   const allPoints = selected.flatMap(route => route.route.path);
@@ -1254,9 +1254,9 @@ async function saveParsedMiFitnessActivities(activities, file, format) {
   return { imported, skipped, missing: [...missing] };
 }
 
-async function importMiFitnessActivityFile() {
-  const file = document.getElementById("miFitnessActivityFile").files[0];
-  const status = document.getElementById("miFitnessStatus");
+async function importMiFitnessActivityFile(fileInputId = "miFitnessActivityFile", statusId = "miFitnessStatus") {
+  const file = document.getElementById(fileInputId)?.files[0];
+  const status = document.getElementById(statusId);
   if (!file) { status.textContent = "Choose a TCX, GPX, or KML activity file first."; return; }
   const format = file.name.split(".").pop().toLowerCase();
   try {
@@ -1362,16 +1362,18 @@ async function renderImportedMiFitness() {
   const imported = await getImportedMiFitness();
   window.importedMiFitnessActivities = imported;
   window.importedMiFitnessRoutes = imported.filter(workout => workout.route?.path?.length > 1);
-  const typeFilter = document.getElementById("routeTypeFilter");
-  if (typeFilter) {
-    const currentType = typeFilter.value;
-    const types = [...new Set(window.importedMiFitnessRoutes.map(route => route.label).filter(Boolean))].sort();
-    typeFilter.innerHTML = '<option value="">All activities</option>' + types.map(type => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`).join("");
-    typeFilter.value = types.includes(currentType) ? currentType : "";
-    typeFilter.onchange = renderRouteMap;
-  }
-  const dateFilter = document.getElementById("routeDateFilter");
-  if (dateFilter) dateFilter.onchange = renderRouteMap;
+  ["", "maps"].forEach(prefix => {
+    const typeFilter = document.getElementById(prefix ? `${prefix}RouteTypeFilter` : "routeTypeFilter");
+    if (typeFilter) {
+      const currentType = typeFilter.value;
+      const types = [...new Set(window.importedMiFitnessRoutes.map(route => route.label).filter(Boolean))].sort();
+      typeFilter.innerHTML = '<option value="">All activities</option>' + types.map(type => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`).join("");
+      typeFilter.value = types.includes(currentType) ? currentType : "";
+      typeFilter.onchange = () => renderRouteMap(prefix);
+    }
+    const dateFilter = document.getElementById(prefix ? `${prefix}RouteDateFilter` : "routeDateFilter");
+    if (dateFilter) dateFilter.onchange = () => renderRouteMap(prefix);
+  });
   const el = document.getElementById("miFitnessHistory");
   if (!el) return;
   el.innerHTML = imported.slice(-20).reverse().map(workout =>
@@ -1379,6 +1381,7 @@ async function renderImportedMiFitness() {
   ).join("") || '<p class="no-activities">No imported workouts yet.</p>';
   await renderImportedAssociations(imported);
   renderRouteMap();
+  renderRouteMap("maps");
 }
 
 async function saveJournalEntry() {

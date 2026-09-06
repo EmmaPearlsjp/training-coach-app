@@ -91,6 +91,7 @@
     <button class="tab-btn" data-panel="log">My log</button>
     <button class="tab-btn" data-panel="reports">Reports</button>
     <button class="tab-btn" data-panel="physiology">Physiology</button>
+    <button class="tab-btn" data-panel="maps">Maps</button>
     <button class="tab-btn" data-panel="journal">Journal</button>
     <button class="tab-btn" data-panel="nutrition">Nutrition Coach</button>
   </nav>
@@ -393,6 +394,31 @@
     </div>
   </section>
 
+  <section class="panel" id="maps">
+    <div class="section-intro">
+      <p class="kicker">Private route maps</p>
+      <h2>Activity routes</h2>
+      <p class="sub">Review imported TCX, GPX, and KML routes without sending location data to an external map service.</p>
+    </div>
+    <div class="log-card sync-card">
+      <h3>Import activity files</h3>
+      <input type="file" id="mapsMiFitnessActivityFile" accept=".tcx,.gpx,.kml,application/vnd.garmin.tcx+xml,application/gpx+xml,application/vnd.google-earth.kml+xml">
+      <button class="action" onclick="importMiFitnessActivityFile('mapsMiFitnessActivityFile', 'mapsMiFitnessStatus')">Import TCX / GPX / KML</button>
+      <p id="mapsMiFitnessStatus" class="empty-note"></p>
+      <p class="empty-note">The same imported records are used in Physiology and Calendar. Importing the same file again is skipped.</p>
+    </div>
+    <div class="route-view standalone-route-view" id="mapsRouteView">
+      <h3>Route map</h3>
+      <div class="route-filters">
+        <label>Type <select id="mapsRouteTypeFilter"><option value="">All activities</option></select></label>
+        <label>Search date <input type="date" id="mapsRouteDateFilter"></label>
+      </div>
+      <div id="mapsRouteChecklist" class="route-checklist"></div>
+      <div id="mapsRouteMap" class="route-map" role="img" aria-label="Selected imported routes"></div>
+      <div id="mapsRouteAnalysis" class="route-analysis"></div>
+    </div>
+  </section>
+
   <section class="panel" id="journal">
     <div class="log-card">
       <h3>New journal entry</h3>
@@ -527,7 +553,7 @@
     }
   });
 </script>
-<script src="storage-adapter.js?v=reliability-pass-6"></script>
-<script src="app.js?v=reliability-pass-6"></script>
+<script src="storage-adapter.js?v=reliability-pass-7"></script>
+<script src="app.js?v=reliability-pass-7"></script>
 </body>
 </html>
