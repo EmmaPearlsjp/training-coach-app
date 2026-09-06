@@ -88,13 +88,13 @@
         <button class="action secondary-action" onclick="openTodayReport()">See today</button>
       </div>
       <div class="overview-grid" id="overviewStats"></div>
-      <div class="progress-label"><span>Training goal</span><strong id="overviewGoalLabel"></strong></div>
+      <div class="progress-label"><span>Training goal</span><strong id="overviewGoalLabel">Loading…</strong></div>
       <div class="overview-progress"><span id="overviewProgressBar"></span></div>
-      <div class="progress-label"><span>Running kilometres</span><strong id="overviewKmLabel"></strong></div>
+      <div class="progress-label"><span>Running kilometres</span><strong id="overviewKmLabel">Loading…</strong></div>
       <div class="overview-progress km-progress"><span id="overviewKmProgressBar"></span></div>
-      <div class="activity-hours" id="activityHours"></div>
-      <div class="today-brief" id="todayBrief"></div>
-      <p class="overview-message" id="overviewMessage"></p>
+      <div class="activity-hours" id="activityHours"><span>Loading activity totals…</span></div>
+      <div class="today-brief" id="todayBrief"><strong>Preparing guidance</strong><span>Reading your recent training log…</span></div>
+      <p class="overview-message" id="overviewMessage">Loading your plan summary…</p>
     </section>
     <div class="legend">
       <span class="b-rest">Rest</span>
@@ -453,7 +453,7 @@
     }
   });
 </script>
-<script src="storage-adapter.js?v=workout-management-1"></script>
-<script src="app.js?v=workout-management-1"></script>
+<script src="storage-adapter.js?v=workout-management-2"></script>
+<script src="app.js?v=workout-management-2"></script>
 </body>
 </html>

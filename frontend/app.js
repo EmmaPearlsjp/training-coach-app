@@ -1579,6 +1579,7 @@ renderActualDataForAllWeeks();
 document.getElementById("wb-0").classList.add("open");
 document.getElementById("customWorkoutDate").value = new Date().toISOString().slice(0, 10);
 document.getElementById("journalDate").value = new Date().toISOString().slice(0, 10);
+renderOverview().catch(error => console.error("Initial dashboard render failed", error));
 Promise.all([
   loadActivities(),
   loadDone(),
