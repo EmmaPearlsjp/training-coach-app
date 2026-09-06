@@ -1,0 +1,16 @@
+{
+  "name": "training-coach-backend",
+  "version": "1.0.0",
+  "description": "Key-value API backing the training coach app, mimicking the Claude artifact window.storage interface so the frontend needs minimal changes.",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  }
+}

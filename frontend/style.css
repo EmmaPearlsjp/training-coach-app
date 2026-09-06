@@ -1,0 +1,164 @@
+:root {
+    --ink: #503447;
+    --ink-soft: #6B5A61;
+    --dim: #8A7A80;
+    --line: rgba(80,52,71,0.16);
+    --white: #FAF6EE;
+    --panel: #F2E9D8;
+    --accent: #862C4D;
+    --accent-dark: #88241E;
+    --green: #507555;
+    --blue: #D8ADAA;
+    --navy: #B25074;
+    --grey: #444D4C;
+    --amber: #E18079;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--white);
+    color: var(--ink);
+    font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 22px 16px 60px; }
+
+  header { margin-bottom: 20px; }
+  .kicker { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); margin: 0 0 8px; }
+  h1 { font-size: 26px; margin: 0 0 10px; font-weight: 800; color: var(--ink); letter-spacing: -0.01em; }
+  .sub { font-size: 13.5px; color: var(--ink-soft); max-width: 62ch; margin: 0 0 14px; }
+
+  .countdown-row { display: flex; gap: 10px; }
+  .countdown-box { background: var(--ink); color: var(--white); border-radius: 8px; padding: 12px 16px; }
+  .countdown-box .num { font-size: 26px; font-weight: 800; line-height: 1; }
+  .countdown-box .lbl { font-size: 10.5px; color: #B8BCC4; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
+  .countdown-box.accent { background: var(--accent); }
+  .countdown-box.accent .lbl { color: rgba(255,255,255,0.75); }
+
+  nav.tabs { display: flex; gap: 4px; margin: 22px 0 16px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+  nav.tabs button { background: none; border: none; color: var(--dim); font-size: 13.5px; font-weight: 600; padding: 10px 12px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; font-family: inherit; }
+  nav.tabs button.active { color: var(--ink); border-bottom: 2px solid var(--accent); }
+
+  section.panel { display: none; }
+  section.panel.active { display: block; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; font-size: 11px; font-weight: 600; }
+  .legend span { padding: 4px 10px; border-radius: 5px; color: #fff; }
+
+  .week-block { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; overflow: hidden; background: #FFFFFF; }
+  .week-head { display: flex; justify-content: space-between; align-items: center; padding: 13px 14px; cursor: pointer; background: var(--panel); }
+  .week-head .wname { font-size: 13.5px; color: var(--ink); font-weight: 700; }
+  .week-head .wdate { font-size: 11.5px; color: var(--dim); font-weight: 600; }
+  .week-body { display: none; padding: 4px 14px 14px; }
+  .week-block.open .week-body { display: block; }
+  .week-block.race .week-head { background: var(--accent); }
+  .week-block.race .week-head .wname, .week-block.race .week-head .wdate { color: #fff; }
+
+  .day-row { display: grid; grid-template-columns: 42px 1fr 24px; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); align-items: start; }
+  .day-row:last-child { border-bottom: none; }
+  .day-row input[type="checkbox"] { width: 18px; height: 18px; margin-top: 4px; accent-color: var(--accent); }
+  .day-name { font-size: 11.5px; color: var(--dim); font-weight: 700; text-transform: uppercase; padding-top: 4px; }
+  .day-title { font-size: 14.5px; margin: 0; font-weight: 600; color: var(--ink); }
+  .badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 5px; margin-top: 4px; color: #fff; text-transform: uppercase; letter-spacing: 0.02em; }
+
+  .b-rest { background: var(--grey); }
+  .b-easy { background: var(--green); }
+  .b-intervals { background: var(--accent); }
+  .b-tempo { background: var(--accent); }
+  .b-hills { background: var(--accent-dark); }
+  .b-long { background: var(--navy); }
+  .b-timetrial { background: var(--accent); }
+  .b-race { background: var(--ink); }
+  .b-legscore { background: var(--blue); color: var(--ink); }
+  .b-upperbody { background: #B385A2; }
+  .b-badminton { background: var(--amber); color: var(--ink); }
+  .b-hiking { background: #817F3E; }
+  .b-extra { background: #FFFFFF; border: 1px solid var(--ink); color: var(--ink); }
+
+  .activity-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .activity-row:last-child { border-bottom: none; }
+  .activity-main { flex: 1; }
+  .activity-day { font-size: 11px; font-weight: 700; color: var(--dim); text-transform: uppercase; }
+  .activity-detail { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+  .activity-remove { background: none; border: none; color: var(--dim); font-size: 16px; cursor: pointer; padding: 0 4px; line-height: 1; }
+  .activity-remove:hover { color: var(--accent-dark); }
+  .move-btn { background: var(--ink); color: #fff; border: none; padding: 5px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 600; cursor: pointer; margin-top: 6px; font-family: inherit; }
+  .add-activity-row { display: flex; gap: 8px; margin-top: 10px; }
+  .no-activities { font-size: 12.5px; color: var(--dim); font-style: italic; }
+
+  .bad-picker { background: #FFFFFF; border-radius: 8px; padding: 10px 12px; margin-top: 8px; }
+  .bad-picker label { font-size: 11.5px; color: var(--dim); font-weight: 600; display: block; margin-bottom: 6px; }
+  .bad-row { display: flex; gap: 8px; margin-bottom: 6px; }
+  select { background: #FFFFFF; border: 1px solid var(--line); color: var(--ink); padding: 7px 8px; border-radius: 6px; font-size: 13px; font-family: inherit; flex: 1; }
+  .warn { font-size: 12px; color: var(--accent-dark); margin-top: 6px; font-weight: 600; }
+  .ok { font-size: 12px; color: var(--green); margin-top: 6px; font-weight: 600; }
+  .feel-btn { flex: 1; background: #FFFFFF; border: 1px solid var(--line); color: var(--ink-soft); font-size: 12.5px; font-weight: 600; padding: 7px 6px; border-radius: 6px; cursor: pointer; font-family: inherit; }
+  .feel-btn.selected { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .coach-note { background: var(--ink); color: #fff; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; }
+  .coach-note h4 { font-size: 12px; color: var(--accent); font-weight: 700; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .coach-note p { font-size: 13.5px; margin: 0; line-height: 1.5; }
+  .coach-note .caveat { font-size: 11px; color: #9BA0A8; margin-top: 8px; }
+
+  .subtabs { display: flex; gap: 6px; margin-bottom: 16px; }
+  .subtabs button { background: var(--panel); border: 1px solid var(--line); color: var(--ink-soft); font-size: 12.5px; font-weight: 600; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-family: inherit; }
+  .subtabs button.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .report-view { display: none; }
+  .report-view.active { display: block; }
+  .stat-row { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  .stat-box { background: var(--panel); border-radius: 8px; padding: 12px 14px; flex: 1; min-width: 100px; }
+  .stat-box .num { font-size: 22px; color: var(--ink); font-weight: 800; }
+  .stat-box .lbl { font-size: 10.5px; color: var(--dim); margin-top: 2px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+  .chart-card { background: var(--panel); border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+  .chart-card h4 { font-size: 12px; color: var(--ink-soft); font-weight: 700; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .chart-card canvas { max-height: 220px; }
+  .week-select-row { margin-bottom: 14px; }
+  .week-select-row label { font-size: 11.5px; color: var(--dim); font-weight: 600; display: block; margin-bottom: 6px; }
+  .today-card { background: var(--ink); color: #fff; border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+  .today-card .dow { font-size: 11.5px; color: var(--accent); margin: 0 0 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+  .today-card .sesh { font-size: 19px; margin: 0 0 8px; color: #fff; font-weight: 700; }
+  .today-card button.action { margin-top: 12px; }
+  .today-card .warn { color: #F0B8A8; }
+
+  .circuit-block { margin-bottom: 20px; }
+  .circuit-block h3 { font-size: 15.5px; margin: 0 0 8px; color: var(--ink); font-weight: 700; }
+  .circuit-block p.tag-line { font-size: 11.5px; color: var(--dim); margin: -4px 0 8px; font-weight: 500; }
+  .circuit-block ul { margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--ink-soft); }
+  .circuit-block li { margin-bottom: 5px; }
+
+  .log-card { background: var(--panel); border-radius: 8px; padding: 15px; margin-bottom: 14px; }
+  .log-card h3 { font-size: 11.5px; color: var(--dim); margin: 0 0 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+  .weight-input-row { display: flex; gap: 8px; }
+  input[type="number"], textarea { background: #FFFFFF; border: 1px solid var(--line); color: var(--ink); padding: 9px 10px; border-radius: 6px; font-size: 13.5px; font-family: inherit; width: 100%; }
+  textarea { resize: vertical; min-height: 56px; }
+  button.action { background: var(--accent); color: #fff; border: none; padding: 9px 16px; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; }
+  button.action:hover { background: var(--accent-dark); }
+  .log-entry { font-size: 13px; color: var(--ink-soft); padding: 7px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 10px; }
+  .log-entry:last-child { border-bottom: none; }
+  .log-entry .val { color: var(--ink); font-weight: 700; }
+  .empty-note { font-size: 12.5px; color: var(--dim); font-style: italic; }
+  .note { font-size: 12px; color: var(--dim); margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); }
+
+  /* Physiology tab — white background per Emma's design request, distinct from the rest of the app */
+  .phys-panel { background: #FFFFFF; border-radius: 10px; padding: 18px; margin: -6px; }
+  .phys-date { font-size: 11.5px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 6px; }
+  .phys-card { background: #F7F7F7; }
+  .insight-flag { background: var(--ink); color: #fff; border-radius: 10px; padding: 16px 18px; margin-bottom: 14px; }
+  .insight-flag .tag { display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 3px 9px; border-radius: 5px; margin-bottom: 8px; background: var(--amber); color: var(--ink); }
+  .insight-flag h3 { font-size: 14.5px; margin: 0 0 8px; font-weight: 700; }
+  .insight-flag p { font-size: 13.5px; margin: 0; line-height: 1.55; }
+  .insight-normal { background: #F7F7F7; border-radius: 10px; padding: 16px 18px; margin-bottom: 14px; }
+  .insight-normal .tag { display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 3px 9px; border-radius: 5px; margin-bottom: 8px; }
+  .tag-good { background: var(--green); color: #fff; }
+  .tag-watch { background: var(--amber); color: var(--ink); }
+  .insight-normal h3 { font-size: 14.5px; margin: 0 0 8px; font-weight: 700; color: var(--ink); }
+  .insight-normal p { font-size: 13.5px; margin: 0; line-height: 1.55; color: var(--ink-soft); }
+  .phys-history-entry { font-size: 12.5px; color: var(--ink-soft); padding: 7px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; }
+  .phys-history-entry:last-child { border-bottom: none; }
+  .past-activity-entry { font-size: 12.5px; color: var(--ink-soft); padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .past-activity-entry:last-child { border-bottom: none; }
+  .past-activity-entry .pa-date { font-weight: 700; color: var(--ink); font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .past-activity-entry.pending { color: var(--accent-dark); font-style: italic; }
+  .actual-data { background: #F7F7F7; border-radius: 6px; padding: 8px 10px; margin-top: 6px; font-size: 12px; color: var(--ink-soft); }
+  .actual-data strong { color: var(--ink); }
+  .actual-flag { color: var(--accent-dark); font-weight: 600; }

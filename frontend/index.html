@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Emma's 10K Plan + Badminton</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="kicker">Race day · Nov 21, 2026</p>
+    <h1>10K training plan</h1>
+    <p class="sub">11 weeks, starting this week. The low-volume intro week already passed, so this starts you straight into real training — with a weekly check-in that adjusts guidance based on what you actually complete.</p>
+    <div class="countdown-row" id="countdownRow"></div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-panel="plan">12-week plan</button>
+    <button class="tab-btn" data-panel="strength">Legs &amp; Core / Upper Body</button>
+    <button class="tab-btn" data-panel="log">My log</button>
+    <button class="tab-btn" data-panel="reports">Reports</button>
+    <button class="tab-btn" data-panel="physiology">Physiology</button>
+  </nav>
+
+  <section class="panel active" id="plan">
+    <div class="legend">
+      <span class="b-rest">Rest</span>
+      <span class="b-easy">Easy run</span>
+      <span class="b-intervals">Intervals</span>
+      <span class="b-tempo">Tempo</span>
+      <span class="b-hills">Hills</span>
+      <span class="b-long">Long run</span>
+      <span class="b-timetrial">Time trial</span>
+      <span class="b-race">Race</span>
+      <span class="b-legscore">Legs &amp; core</span>
+      <span class="b-upperbody">Upper body</span>
+      <span class="b-badminton">Badminton</span>
+      <span class="b-hiking">Hiking</span>
+    </div>
+    <div id="weeksContainer"></div>
+    <p class="note">Add any extra activity — badminton, hiking, gym, swim, yoga, or something else — inside each week's card. Fit is checked automatically: fine on Rest / Upper Body days, and on a clash with Legs & Core or Upper Body you'll get a one-tap option to move that session to a free rest day. Clashes with a hard run day (Intervals / Tempo / Hills / Long Run / Time Trial / Race) are flagged but left for you to decide — those aren't safe to auto-move.</p>
+  </section>
+
+  <section class="panel" id="strength">
+    <div class="circuit-block">
+      <h3>Legs &amp; Core — "Loading Up"</h3>
+      <p class="tag-line">Straight from your Runna app · needs a dumbbell</p>
+      <ul>
+        <li>3 sets: Heel Walks, Diagonal Toe Tap, Side Leg Swings, Bodyweight Squat</li>
+        <li>3 sets: Single Leg Isometric Hamstring Holds, Hip Drop</li>
+        <li>3 sets: Single Leg Glute Bridge, Bent Knee Calf Raise</li>
+        <li>2 sets: Walking Lunge, Loaded Walking Calf Raises</li>
+        <li>2 sets: Standing Side Bend, Plank</li>
+      </ul>
+      <p class="tag-line">Reps are in the app — open Runna and press "Start Workout" for the exact count. Runna rotates a few different Legs & Core workouts through the plan; this is one of them.</p>
+    </div>
+    <div class="circuit-block">
+      <h3>Upper Body — "Upper Body Lift"</h3>
+      <p class="tag-line">Straight from your Runna app · needs a bench and dumbbell</p>
+      <ul>
+        <li>3 sets: Travelling Press Up Walk Out, Mountain Climber, Press Up Position Walk Out, Bear Crawl</li>
+        <li>2 sets: Dumbbell Bench Press, Lunge and Press</li>
+        <li>2 sets: Bent Over Row, Deadbug</li>
+        <li>2 sets: Single Arm Row, Farmer's Carry</li>
+        <li>3 sets: Hip Drop, Side Plank</li>
+      </ul>
+      <p class="tag-line">Same here — Runna rotates a few Upper Body workouts, so the app is the source of truth on any given week.</p>
+    </div>
+    <div class="circuit-block">
+      <h3>Flexibility add-on (any day, 10–15 min)</h3>
+      <ul>
+        <li>Hip flexor &amp; hamstring stretch — 60 sec per side</li>
+        <li>Seated forward fold — 60 sec</li>
+        <li>Cat–cow + child's pose — 5 rounds</li>
+        <li>Shoulder &amp; chest opener — 60 sec</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="panel" id="log">
+    <div class="log-card">
+      <h3>Log weight (optional)</h3>
+      <div class="weight-input-row">
+        <input type="number" id="weightInput" placeholder="e.g. 58.4" step="0.1">
+        <button class="action" onclick="logWeight()">Save</button>
+      </div>
+      <div id="weightHistory" style="margin-top:12px;"></div>
+    </div>
+    <div class="log-card">
+      <h3>Meals / eating notes</h3>
+      <textarea id="mealInput" placeholder="e.g. Breakfast: onigiri + egg. Felt good after Tuesday's run."></textarea>
+      <div style="margin-top:8px; text-align:right;">
+        <button class="action" onclick="logMeal()">Add note</button>
+      </div>
+      <div id="mealHistory" style="margin-top:12px;"></div>
+    </div>
+    <p class="note">This logs locally to this artifact — it doesn't pull live data from Strava or Mi Fitness. Keep using those apps for the actual session data; use this for quick notes and trend-watching.</p>
+  </section>
+
+  <section class="panel" id="reports">
+    <div class="subtabs">
+      <button class="sub-btn active" data-view="daily">Daily</button>
+      <button class="sub-btn" data-view="weekly">Weekly</button>
+      <button class="sub-btn" data-view="monthly">Monthly</button>
+    </div>
+
+    <div class="report-view active" id="view-daily">
+      <div class="today-card" id="todayCard"></div>
+      <div class="chart-card">
+        <h4>Weight — last 10 entries</h4>
+        <canvas id="dailyWeightChart"></canvas>
+      </div>
+    </div>
+
+    <div class="report-view" id="view-weekly">
+      <div class="week-select-row">
+        <label>Choose a week</label>
+        <select id="weekSelect" onchange="renderWeeklyReport()"></select>
+      </div>
+      <div class="stat-row" id="weeklyStats"></div>
+      <div class="coach-note" id="coachNote"></div>
+      <div class="chart-card">
+        <h4>Sessions completed this week</h4>
+        <canvas id="weeklyCompletionChart"></canvas>
+      </div>
+    </div>
+
+    <div class="report-view" id="view-monthly">
+      <div class="stat-row" id="monthlyStats"></div>
+      <div class="chart-card">
+        <h4>Completion rate by week</h4>
+        <canvas id="monthlyCompletionChart"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Running distance by week (km)</h4>
+        <canvas id="monthlyKmChart"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Extra activities by week</h4>
+        <canvas id="monthlyBadmintonChart"></canvas>
+      </div>
+      <div class="chart-card">
+        <h4>Weight trend — all entries</h4>
+        <canvas id="monthlyWeightChart"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="physiology">
+    <div class="phys-panel">
+      <p class="phys-date" id="physReportDate"></p>
+      <p class="sub" style="margin-bottom:16px;">Pulled from Mi Fitness — steps, workouts, and heart rate. Ask Claude to "pull my Mi Fitness data" any time to refresh this with a new dated report.</p>
+
+      <div class="stat-row" id="physStats"></div>
+
+      <div class="chart-card phys-card">
+        <h4>Daily steps</h4>
+        <canvas id="physStepsChart"></canvas>
+      </div>
+      <div class="chart-card phys-card">
+        <h4>Weekly training minutes by activity</h4>
+        <canvas id="physWeeklyChart"></canvas>
+      </div>
+      <div class="chart-card phys-card">
+        <h4>Heart rate during runs — average vs. peak</h4>
+        <canvas id="physHrChart"></canvas>
+      </div>
+
+      <div id="physInsights"></div>
+
+      <div class="chart-card phys-card">
+        <h4>Past activity — before the plan started (Sept 6)</h4>
+        <div id="physPastActivity"></div>
+      </div>
+
+      <div class="chart-card phys-card">
+        <h4>Report history</h4>
+        <div id="physHistory"></div>
+      </div>
+
+      <p class="note">HR-based zone reads are estimates without a real lactate-threshold or max-HR field test — pattern-level findings, not medical or physiological diagnosis.</p>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  // Point this at your deployed backend once it's live, e.g.:
+  // window.TRAINING_API_BASE = "https://your-api.onrender.com";
+</script>
+<script src="storage-adapter.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
