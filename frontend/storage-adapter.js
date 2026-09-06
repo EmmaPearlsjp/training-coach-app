@@ -6,7 +6,8 @@
 // e.g. <script>window.TRAINING_API_BASE = "https://your-api.onrender.com";</script>
 
 (function () {
-  const API_BASE = window.TRAINING_API_BASE || "http://localhost:3001";
+  const isLocalHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+  const API_BASE = window.TRAINING_API_BASE || (isLocalHost ? "http://localhost:3001" : "");
   const LOCAL_PREFIX = "training-coach:";
 
   function localKey(key, shared) {
